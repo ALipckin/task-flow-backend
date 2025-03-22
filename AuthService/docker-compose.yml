@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  auth-service:
+    build: ./
+    container_name: auth-service
+    volumes:
+      - .:/usr/local/bin/
+    ports:
+      - "5440:8081"
+    networks:
+      - task-network
+    command: [ "CompileDaemon", "-command=go run main.go" ]
+  auth-db:
+    image: postgres:14
+    container_name: auth-db
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: root
+      POSTGRES_DB: auth_db
+    ports:
+      - "5435:5435"  # Теперь оба порта 5435
+    command: ["postgres", "-c", "port=5435"]  # Меняем внутренний порт
+    volumes:
+      - auth-db-data:/var/lib/postgresql/data
+    networks:
+      - task-network
+volumes:
+  auth-db-data:
+
+networks:
+  task-network:
+    external: true

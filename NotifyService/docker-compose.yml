@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  notify-service:
+    build: ./
+    container_name: notify-service
+    volumes:
+      - .:/usr/local/bin/
+    networks:
+      - task-network
+    command: [ "CompileDaemon", "-command=go run main.go" ]
+  mailhog:
+    image: mailhog/mailhog
+    container_name: mailhog
+    restart: always
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    networks:
+      - task-network
+networks:
+  task-network:
+    external: true
