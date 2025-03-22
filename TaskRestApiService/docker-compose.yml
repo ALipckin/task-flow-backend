@@ -13,7 +13,7 @@ services:
     command: [ "CompileDaemon", "-command=go run main.go" ]
     depends_on:
       - kafka
-
+    restart: always
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
     container_name: zookeeper
