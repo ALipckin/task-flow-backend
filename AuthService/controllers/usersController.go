@@ -4,8 +4,10 @@ import (
 	"AuthService/initializers"
 	"AuthService/models"
 	"encoding/json"
-	"gorm.io/gorm"
 	"net/http"
+	"strings"
+
+	"gorm.io/gorm"
 )
 
 type Response struct {
@@ -13,7 +15,7 @@ type Response struct {
 	Email string `json:"email"`
 }
 
-func UserInfoHandler(w http.ResponseWriter, r *http.Request) {
+func GetUser(w http.ResponseWriter, r *http.Request) {
 	queryParams := r.URL.Query()
 	id := queryParams.Get("id")
 	var user models.User
@@ -34,4 +36,27 @@ func UserInfoHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(userResponse)
+}
+
+func GetUsers(w http.ResponseWriter, r *http.Request) {
+	queryParams := r.URL.Query()
+	ids := queryParams.Get("ids")
+	idList := strings.Split(ids, ",")
+	var users []models.User
+	if err := initializers.DB.Where("id IN ?", idList).Find(&users).Error; err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	var userResponses []Response
+	for _, user := range users {
+		userResponses = append(userResponses, Response{
+			Id:    user.ID,
+			Email: user.Email,
+		})
+	}
+
+	json.NewEncoder(w).Encode(userResponses)
 }

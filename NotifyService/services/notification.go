@@ -56,7 +56,7 @@ func login() (string, error) {
 
 func getUserData(userId int) map[string]interface{} {
 	host := os.Getenv("AUTH_SERVICE_HOST")
-	url := host + "/getUserInfo?id=" + strconv.Itoa(userId)
+	url := host + "/user?id=" + strconv.Itoa(userId)
 
 	// Получаем токен с помощью авторизации
 	token, err := login()

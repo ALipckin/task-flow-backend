@@ -1,6 +1,7 @@
 package main
 
 import (
+	"AuthService/commands"
 	"AuthService/controllers"
 	"AuthService/initializers"
 	"AuthService/middleware"
@@ -15,11 +16,17 @@ func init() {
 }
 
 func main() {
+	token, err := commands.GenerateAdminToken()
+	if err != nil {
+		return
+	}
+	fmt.Println("Auth service token: ", token)
 	http.HandleFunc("/login", controllers.Login)
 	http.HandleFunc("/register", controllers.SignUp)
 	http.Handle("/validate", middleware.RequireAuth(http.HandlerFunc(controllers.Validate)))
 
-	http.Handle("/getUserInfo", middleware.RequireAuthWithGroup("admin", http.HandlerFunc(controllers.UserInfoHandler)))
+	http.Handle("/user", middleware.RequireAuthWithGroup("admin", http.HandlerFunc(controllers.GetUser)))
+	http.Handle("/users", middleware.RequireAuthWithGroup("admin", http.HandlerFunc(controllers.GetUsers)))
 
 	fmt.Println("Server started on :8081")
 	http.ListenAndServe(":8081", nil)
