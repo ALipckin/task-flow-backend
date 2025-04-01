@@ -69,7 +69,7 @@ func ParseUsersData(data []map[string]interface{}) ([]User, error) {
 	var users []User
 
 	for _, item := range data {
-		id, ok := item["id"].(float64) // JSON numbers are decoded as float64
+		id, ok := item["id"].(float64)
 		if !ok {
 			return nil, fmt.Errorf("invalid id format")
 		}
@@ -79,7 +79,7 @@ func ParseUsersData(data []map[string]interface{}) ([]User, error) {
 		}
 		name, ok := item["name"].(string)
 		if !ok {
-			return nil, fmt.Errorf("invalid email format")
+			return nil, fmt.Errorf("invalid name format")
 		}
 		users = append(users, User{
 			ID:    int(id),
