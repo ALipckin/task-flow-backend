@@ -20,6 +20,7 @@ func SyncDatabase() {
 		user := models.User{
 			Email:    "admin@admin.admin",
 			Group:    "admin",
+			Name:     "admin",
 			Password: string(hash),
 		}
 

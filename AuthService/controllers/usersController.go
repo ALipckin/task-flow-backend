@@ -13,6 +13,7 @@ import (
 type Response struct {
 	Id    int    `json:"id"`
 	Email string `json:"email"`
+	Name  string `json:"name"`
 }
 
 func GetUser(w http.ResponseWriter, r *http.Request) {
@@ -33,6 +34,7 @@ func GetUser(w http.ResponseWriter, r *http.Request) {
 	userResponse := Response{
 		Id:    user.ID,
 		Email: user.Email,
+		Name:  user.Name,
 	}
 
 	json.NewEncoder(w).Encode(userResponse)
@@ -55,6 +57,7 @@ func GetUsers(w http.ResponseWriter, r *http.Request) {
 		userResponses = append(userResponses, Response{
 			Id:    user.ID,
 			Email: user.Email,
+			Name:  user.Name,
 		})
 	}
 
