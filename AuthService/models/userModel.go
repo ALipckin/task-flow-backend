@@ -8,9 +8,10 @@ import (
 type User struct {
 	gorm.Model
 	ID       int    `gorm:"primaryKey;autoIncrement"`
-	Email    string `gorm:"unique"`
-	Group    string
-	Password string
+	Email    string `gorm:"unique;not null"`
+	Name     string `gorm:"unique;not null"`
+	Group    string `gorm:"default:'user'"`
+	Password string `gorm:"not null"`
 }
 
 type contextKey string

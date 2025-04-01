@@ -14,6 +14,7 @@ import (
 
 type RequestBody struct {
 	Email    string `json:"email"`
+	Name     string `json:"name"`
 	Password string `json:"password"`
 }
 
@@ -35,13 +36,41 @@ func SignUp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Валидация входных данных
+	if body.Email == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Email is required"})
+		return
+	}
+
+	if body.Name == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Name is required"})
+		return
+	}
+
+	if len(body.Name) < 3 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Name must be at least 3 characters long"})
+		return
+	}
+
+	if body.Password == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Password is required"})
+		return
+	}
+
+	if len(body.Password) < 6 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Password must be at least 6 characters long"})
+		return
+	}
+
+	// Хеширование пароля
 	hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), 10)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to hash password"})
 		return
 	}
 
-	user := models.User{Email: body.Email, Password: string(hash)}
+	// Создание пользователя
+	user := models.User{Email: body.Email, Password: string(hash), Name: body.Name}
 	result := initializers.DB.Create(&user)
 	if result.Error != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Failed to create user"})

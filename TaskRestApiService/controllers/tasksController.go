@@ -103,9 +103,9 @@ func (tc *TaskController) enrichTasksWithUserData(tasks []*pb.Task) ([]gin.H, er
 		return nil, err
 	}
 
-	userMap := make(map[int]string)
+	userMap := make(map[int]struct{ Email, Name string })
 	for _, user := range users {
-		userMap[user.ID] = user.Email
+		userMap[user.ID] = struct{ Email, Name string }{Email: user.Email, Name: user.Name}
 	}
 
 	tasksWithUsers := make([]gin.H, len(tasks))
@@ -116,25 +116,28 @@ func (tc *TaskController) enrichTasksWithUserData(tasks []*pb.Task) ([]gin.H, er
 	return tasksWithUsers, nil
 }
 
-func (tc *TaskController) enrichTaskWithUserData(task *pb.Task, userMap map[int]string) gin.H {
+func (tc *TaskController) enrichTaskWithUserData(task *pb.Task, userMap map[int]struct{ Email, Name string }) gin.H {
 	return gin.H{
 		"id":          task.Id,
 		"title":       task.Title,
 		"description": task.Description,
 		"performer": gin.H{
 			"id":    task.PerformerId,
-			"email": userMap[int(task.PerformerId)],
+			"email": userMap[int(task.PerformerId)].Email,
+			"name":  userMap[int(task.PerformerId)].Name,
 		},
 		"creator": gin.H{
 			"id":    task.CreatorId,
-			"email": userMap[int(task.CreatorId)],
+			"email": userMap[int(task.CreatorId)].Email,
+			"name":  userMap[int(task.CreatorId)].Name,
 		},
 		"observers": func() []gin.H {
 			observers := make([]gin.H, len(task.ObserverIds))
 			for j, observerId := range task.ObserverIds {
 				observers[j] = gin.H{
 					"id":    observerId,
-					"email": userMap[int(observerId)],
+					"email": userMap[int(observerId)].Email,
+					"name":  userMap[int(observerId)].Name,
 				}
 			}
 			return observers
