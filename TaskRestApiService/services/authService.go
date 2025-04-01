@@ -13,6 +13,7 @@ import (
 type User struct {
 	ID    int    `json:"id"`
 	Email string `json:"email"`
+	Name  string `json:"name"`
 }
 
 func GetUsersData(ids []int) ([]User, error) {
@@ -76,10 +77,14 @@ func ParseUsersData(data []map[string]interface{}) ([]User, error) {
 		if !ok {
 			return nil, fmt.Errorf("invalid email format")
 		}
-
+		name, ok := item["name"].(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid email format")
+		}
 		users = append(users, User{
 			ID:    int(id),
 			Email: email,
+			Name:  name,
 		})
 	}
 
