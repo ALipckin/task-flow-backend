@@ -151,3 +151,16 @@ func Validate(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Token is valid", "id": claims["user_id"], "email": claims["email"]})
 }
+
+func Logout(w http.ResponseWriter, r *http.Request) {
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "Authorization",
+		Value:    "",
+		Expires:  time.Now().Add(-time.Hour),
+		HttpOnly: true,
+		Path:     "/",
+	})
+
+	writeJSON(w, http.StatusOK, map[string]string{"message": "Logout successful"})
+}
