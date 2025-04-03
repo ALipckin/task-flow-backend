@@ -26,8 +26,9 @@ func main() {
 	http.Handle("/validate", middleware.RequireAuth(http.HandlerFunc(controllers.Validate)))
 	http.Handle("/logout", middleware.RequireAuth(http.HandlerFunc(controllers.Logout)))
 
-	http.Handle("/user", middleware.RequireAuthWithGroup("admin", http.HandlerFunc(controllers.GetUser)))
-	http.Handle("/users", middleware.RequireAuthWithGroup("admin", http.HandlerFunc(controllers.GetUsers)))
+	//middleware.RequireAuthWithGroup("admin", http.HandlerFunc(controllers.GetUser)))
+	http.Handle("/user", middleware.RequireAuth(http.HandlerFunc(controllers.GetUser)))
+	http.Handle("/users", middleware.RequireAuth(http.HandlerFunc(controllers.GetUsers)))
 
 	fmt.Println("Server started on :8081")
 	http.ListenAndServe(":8081", nil)
