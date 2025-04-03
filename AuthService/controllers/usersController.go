@@ -5,6 +5,7 @@ import (
 	"AuthService/models"
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"gorm.io/gorm"
@@ -43,11 +44,57 @@ func GetUser(w http.ResponseWriter, r *http.Request) {
 func GetUsers(w http.ResponseWriter, r *http.Request) {
 	queryParams := r.URL.Query()
 	ids := queryParams.Get("ids")
-	idList := strings.Split(ids, ",")
+	search := queryParams.Get("search")
+	page := "0"
+	page = queryParams.Get("page")
+	limit := "10"
+	limit = queryParams.Get("limit")
+
 	var users []models.User
-	if err := initializers.DB.Where("id IN ?", idList).Find(&users).Error; err != nil {
-		http.Error(w, "Database error", http.StatusInternalServerError)
-		return
+	db := initializers.DB
+
+	if ids != "" {
+		idList := strings.Split(ids, ",")
+		// Filter out any empty strings from the idList
+		var validIDs []string
+		for _, id := range idList {
+			if id != "" {
+				validIDs = append(validIDs, id)
+			}
+		}
+		if len(validIDs) > 0 {
+			if err := db.Where("id IN ?", validIDs).Find(&users).Error; err != nil {
+				http.Error(w, "Database error", http.StatusInternalServerError)
+				return
+			}
+		} else {
+			// If no valid IDs are provided, return an empty list
+			users = []models.User{}
+		}
+	} else {
+		if search != "" {
+			db = db.Where("name LIKE ? OR email LIKE ?", "%"+search+"%", "%"+search+"%")
+		}
+
+		if page != "" && limit != "" {
+			pageInt, err := strconv.Atoi(page)
+			if err != nil {
+				http.Error(w, "Invalid page parameter", http.StatusBadRequest)
+				return
+			}
+			limitInt, err := strconv.Atoi(limit)
+			if err != nil {
+				http.Error(w, "Invalid limit parameter", http.StatusBadRequest)
+				return
+			}
+			offset := (pageInt - 1) * limitInt
+			db = db.Offset(offset).Limit(limitInt)
+		}
+
+		if err := db.Find(&users).Error; err != nil {
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

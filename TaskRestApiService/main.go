@@ -89,6 +89,14 @@ func main() {
 			targetURL := c.DefaultQuery("url", authHost+"/validate")
 			controllers.ProxyRequest(c, targetURL)
 		})
+		authGroup.GET("/users", func(c *gin.Context) {
+			targetURL := c.DefaultQuery("url", authHost+"/users")
+			controllers.ProxyRequest(c, targetURL)
+		})
+		authGroup.GET("/user", func(c *gin.Context) {
+			targetURL := c.DefaultQuery("url", authHost+"/user")
+			controllers.ProxyRequest(c, targetURL)
+		})
 		authGroup.POST("/logout", func(c *gin.Context) {
 			targetURL := c.DefaultQuery("url", authHost+"/logout")
 			controllers.ProxyRequest(c, targetURL)
