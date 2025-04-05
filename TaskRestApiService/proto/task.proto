@@ -51,7 +51,8 @@ message UpdateTaskRequest {
   string description = 3;
   string status = 4;
   uint64 performer_id = 5;
-  repeated uint64 observer_ids = 6;
+  uint64 creator_id = 6;
+  repeated uint64 observer_ids = 7;
 }
 
 message DeleteTaskRequest {

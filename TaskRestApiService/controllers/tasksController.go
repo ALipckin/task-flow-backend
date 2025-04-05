@@ -45,15 +45,8 @@ func (tc *TaskController) TasksIndex(c *gin.Context) {
 		return
 	}
 
-	tasksWithUsers, err := tc.enrichTasksWithUserData(resp.Tasks)
-	if err != nil {
-		initializers.LogToKafka("error", "TasksIndex", "Failed to get users data", err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to get users data"})
-		return
-	}
-
-	initializers.LogToKafka("info", "TasksIndex", "Task list with users retrieved successfully", tasksWithUsers)
-	c.JSON(http.StatusOK, gin.H{"data": tasksWithUsers})
+	initializers.LogToKafka("info", "TasksIndex", "Task list retrieved successfully", resp.Tasks)
+	c.JSON(http.StatusOK, gin.H{"data": resp.Tasks})
 }
 
 func (tc *TaskController) TasksShow(c *gin.Context) {
@@ -72,15 +65,16 @@ func (tc *TaskController) TasksShow(c *gin.Context) {
 		return
 	}
 
-	taskWithUsers, err := tc.enrichTasksWithUserData([]*pb.Task{resp.Task})
-	if err != nil {
-		initializers.LogToKafka("error", "TasksShow", "Failed to get users data", err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to get users data"})
-		return
-	}
-
-	initializers.LogToKafka("info", "TasksShow", "Task with user data retrieved successfully", taskWithUsers[0])
-	c.JSON(http.StatusOK, gin.H{"data": taskWithUsers[0]})
+	//taskWithUsers, err := tc.enrichTasksWithUserData([]*pb.Task{resp.Task})
+	//if err != nil {
+	//	initializers.LogToKafka("error", "TasksShow", "Failed to get users data", err.Error())
+	//	c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to get users data"})
+	//	return
+	//}
+	//
+	//initializers.LogToKafka("info", "TasksShow", "Task with user data retrieved successfully", taskWithUsers[0])
+	//c.JSON(http.StatusOK, gin.H{"data": taskWithUsers[0]})
+	c.JSON(http.StatusOK, gin.H{"data": resp.Task})
 }
 
 func (tc *TaskController) enrichTasksWithUserData(tasks []*pb.Task) ([]gin.H, error) {
