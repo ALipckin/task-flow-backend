@@ -103,19 +103,30 @@ func (s *TaskServer) GetTasks(ctx context.Context, req *taskpb.GetTasksRequest) 
 	return &taskpb.GetTasksResponse{Tasks: protoTasks}, nil
 }
 
-// UpdateTask обновляет задачу и сбрасывает кэш Redis
 func (s *TaskServer) UpdateTask(ctx context.Context, req *taskpb.UpdateTaskRequest) (*taskpb.TaskResponse, error) {
 	var task models.Task
 	if err := s.DB.First(&task, req.Id).Error; err != nil {
 		return nil, err
 	}
 
+	// Удаляем существующих наблюдателей
+	if err := s.DB.Where("task_id = ?", task.ID).Delete(&models.Observer{}).Error; err != nil {
+		return nil, err
+	}
+
+	// Обновляем поля задачи
 	task.Title = req.Title
 	task.Description = req.Description
+	task.PerformerId = uint(req.PerformerId)
+	task.CreatorId = uint(req.CreatorId)
+	task.Observers = models.ObserversFromIDs(req.ObserverIds)
 	task.Status = req.Status
 	task.UpdatedAt = time.Now()
 
-	s.DB.Save(&task)
+	// Сохраняем обновленную задачу с новыми наблюдателями
+	if err := s.DB.Save(&task).Error; err != nil {
+		return nil, err
+	}
 
 	// Удаляем из Redis, чтобы при следующем запросе получить актуальные данные
 	redisKey := fmt.Sprintf("task:%d", task.ID)
