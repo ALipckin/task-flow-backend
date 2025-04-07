@@ -111,8 +111,13 @@ type KafkaMessage struct {
 	Message string `json:"message"`
 }
 
+type NotificationPayload struct {
+	Event       string `json:"event"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+}
+
 func NotifyUsers(event models.TaskEvent) {
-	// Collect unique user IDs
 	recipients := append(event.ObserversIDs, event.PerformerID, event.CreatorID)
 	log.Printf("📩 Sending notification to users: %v\n", recipients)
 
@@ -121,15 +126,19 @@ func NotifyUsers(event models.TaskEvent) {
 		uniqueUserIDs[userID] = struct{}{}
 	}
 
-	log.Printf("📩 Processing %d unique users\n", len(uniqueUserIDs))
+	writer := initializers.Writer
 
-	// Initialize Kafka writer (assuming it's configured in initializers)
-	writer := initializers.Writer // Kafka Writer instance initialized elsewhere
+	// ✅ Сериализуем payload в JSON
+	notificationPayload := NotificationPayload{
+		Event:       event.Event,
+		Title:       event.Title,
+		Description: event.Description,
+	}
+	payloadJSON, err := json.Marshal(notificationPayload)
+	if err != nil {
+		log.Fatalf("Error marshalling notification payload: %v", err)
+	}
 
-	// Prepare the message content for both Kafka and email
-	messageContent := fmt.Sprintf("Event: %s\nTitle: %s\nDescription: %s", event.Event, event.Title, event.Description)
-
-	// Send notification messages to both Kafka and email
 	for userID := range uniqueUserIDs {
 		userData := getUserData(userID)
 
@@ -142,7 +151,7 @@ func NotifyUsers(event models.TaskEvent) {
 		kafkaMessage := KafkaMessage{
 			UserID:  userID,
 			Email:   email,
-			Message: messageContent,
+			Message: string(payloadJSON), // 👈 теперь это корректный JSON как строка
 		}
 		kafkaMessageJSON, err := json.Marshal(kafkaMessage)
 		if err != nil {
@@ -150,8 +159,8 @@ func NotifyUsers(event models.TaskEvent) {
 		}
 
 		kafkaMessageToSend := kafka.Message{
-			Key:   []byte(fmt.Sprintf("user_%d", userID)), // Partition key by user ID
-			Value: kafkaMessageJSON,                       // Message content
+			Key:   []byte(fmt.Sprintf("user_%d", userID)),
+			Value: kafkaMessageJSON,
 		}
 
 		err = writer.WriteMessages(context.Background(), kafkaMessageToSend)
@@ -161,8 +170,7 @@ func NotifyUsers(event models.TaskEvent) {
 			log.Printf("✅ Kafka message sent for User %d\n", userID)
 		}
 
-		// Send the email notification
-		err = SendEmail(email, event.Event, messageContent)
+		err = SendEmail(email, event.Event, event.Description)
 		if err != nil {
 			log.Printf("🚨 Failed to send email to %s: %v\n", email, err)
 		} else {

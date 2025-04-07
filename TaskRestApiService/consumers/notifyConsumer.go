@@ -29,6 +29,13 @@ type KafkaMessage struct {
 	Message string `json:"message"`
 }
 
+type EventDataMessage struct {
+	Event       string `json:"event"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	UserID      int    `json:"user_id"`
+}
+
 func HandleWebSocketConnection(c *gin.Context) {
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
@@ -59,12 +66,12 @@ func HandleWebSocketConnection(c *gin.Context) {
 	}
 }
 
-func BroadcastToClients(message string, userID int) {
-	log.Println("broadcasting on clients")
+func BroadcastToClients(message []byte, userID int) {
+	log.Println("Broadcasting message to clients")
 	for client, clientID := range clients {
 		// Отправляем сообщение только клиенту с соответствующим user_id
 		if clientID == strconv.Itoa(userID) {
-			err := client.WriteMessage(websocket.TextMessage, []byte(message))
+			err := client.WriteMessage(websocket.TextMessage, message)
 			if err != nil {
 				log.Println("Error sending message to WebSocket client:", err)
 				client.Close()
@@ -77,13 +84,12 @@ func BroadcastToClients(message string, userID int) {
 func ConsumeMessages(topic string) {
 	partitionConsumer, err := KafkaConsumer.ConsumePartition(topic, 0, sarama.OffsetNewest)
 	if err != nil {
-		log.Fatalf("Error create partition consumer: %v", err)
+		log.Fatalf("Error creating partition consumer: %v", err)
 	}
 	defer partitionConsumer.Close()
 
-	log.Printf("Start consume message %s", topic)
+	log.Printf("Start consuming message from topic: %s", topic)
 
-	// Обработка сигналов для корректного завершения работы
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
@@ -92,15 +98,29 @@ func ConsumeMessages(topic string) {
 		case msg := <-partitionConsumer.Messages():
 			log.Printf("Got message: %s", string(msg.Value))
 
-			// Декодируем сообщение из Kafka
-			var kafkaMsg KafkaMessage
-			if err := json.Unmarshal(msg.Value, &kafkaMsg); err != nil {
-				log.Printf("Error unmarshaling Kafka message: %v", err)
+			var raw KafkaMessage
+			if err := json.Unmarshal(msg.Value, &raw); err != nil {
+				log.Printf("Error unmarshaling Kafka raw message: %v", err)
 				continue
 			}
 
-			// Отправляем сообщение только тому пользователю, чье user_id совпадает с id в сообщении
-			BroadcastToClients(kafkaMsg.Message, kafkaMsg.UserID)
+			var eventData EventDataMessage
+			if err := json.Unmarshal([]byte(raw.Message), &eventData); err != nil {
+				log.Printf("Error unmarshaling inner message: %v", err)
+				continue
+			}
+
+			eventData.UserID = raw.UserID
+
+			jsonMessage, err := json.Marshal(eventData)
+			if err != nil {
+				log.Printf("Error marshalling final message: %v", err)
+				continue
+			}
+
+			log.Printf("json: %s", string(jsonMessage))
+			BroadcastToClients(jsonMessage, eventData.UserID)
+
 		case err := <-partitionConsumer.Errors():
 			log.Printf("Error getting message: %v", err)
 		case <-signals:
