@@ -38,7 +38,37 @@ func (tc *TaskController) TasksCreate(c *gin.Context) {
 }
 
 func (tc *TaskController) TasksIndex(c *gin.Context) {
-	resp, err := tc.GRPCClient.GetTasks(context.Background(), &pb.GetTasksRequest{})
+	title := c.Query("title")
+	creatorID := c.Query("creator_id")
+	performerID := c.Query("performer_id")
+
+	req := &pb.GetTasksRequest{}
+
+	if title != "" {
+		req.Title = title
+	}
+
+	if creatorID != "" {
+		creatorID, err := strconv.ParseUint(creatorID, 10, 64)
+		if err != nil {
+			initializers.LogToKafka("error", "TasksIndex", "Invalid creator_id format", creatorID)
+			c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid creator_id"})
+			return
+		}
+		req.CreatorId = creatorID
+	}
+
+	if performerID != "" {
+		performerID, err := strconv.ParseUint(performerID, 10, 64)
+		if err != nil {
+			initializers.LogToKafka("error", "TasksIndex", "Invalid performer_id format", performerID)
+			c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid performer_id"})
+			return
+		}
+		req.PerformerId = performerID
+	}
+
+	resp, err := tc.GRPCClient.GetTasks(context.Background(), req)
 	if err != nil {
 		initializers.LogToKafka("error", "TasksIndex", "Failed to retrieve task list", err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})

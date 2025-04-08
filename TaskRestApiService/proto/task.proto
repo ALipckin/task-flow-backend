@@ -39,7 +39,11 @@ message GetTaskRequest {
   uint64 id = 1;
 }
 
-message GetTasksRequest {}
+message GetTasksRequest {
+  string title = 1;
+  uint64 performer_id = 2;
+  uint64 creator_id = 3;
+}
 
 message GetTasksResponse {
   repeated Task tasks = 1;

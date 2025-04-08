@@ -90,10 +90,23 @@ func (s *TaskServer) GetTask(ctx context.Context, req *taskpb.GetTaskRequest) (*
 	return &taskpb.TaskResponse{Task: convertToProto(task)}, nil
 }
 
-// GetTasks возвращает список всех задач (без кэширования)
 func (s *TaskServer) GetTasks(ctx context.Context, req *taskpb.GetTasksRequest) (*taskpb.GetTasksResponse, error) {
 	var tasks []models.Task
-	s.DB.Find(&tasks)
+	query := s.DB
+
+	if req.Title != "" {
+		query = query.Where("title = ?", req.Title)
+	}
+	if req.CreatorId != 0 {
+		query = query.Where("creator_id = ?", req.CreatorId)
+	}
+	if req.PerformerId != 0 {
+		query = query.Where("performer_id = ?", req.PerformerId)
+	}
+
+	if err := query.Find(&tasks).Error; err != nil {
+		return nil, err
+	}
 
 	var protoTasks []*taskpb.Task
 	for _, t := range tasks {
