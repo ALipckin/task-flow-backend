@@ -3,7 +3,6 @@ package services
 import (
 	"NotifyService/initializers"
 	"NotifyService/models"
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -20,65 +19,22 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 
-func login() (string, error) {
-	fmt.Println("login")
-	email := os.Getenv("AUTH_SERVICE_ADMIN_LOGIN")
-	password := os.Getenv("AUTH_SERVICE_ADMIN_PASSWORD")
-	host := os.Getenv("AUTH_SERVICE_HOST")
-	url := host + "/login"
-
-	loginReq := LoginRequest{
-		Email:    email,
-		Password: password,
-	}
-
-	reqBody, err := json.Marshal(loginReq)
-	if err != nil {
-		return "", err
-	}
-
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(reqBody))
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("auth error: %d", resp.StatusCode)
-	}
-	cookie, err := resp.Cookies()[0].Value, err
-	if err != nil {
-		return "", fmt.Errorf("cookie hollow error: %v", err)
-	}
-	fmt.Println("return cookie")
-	return cookie, nil
-}
-
 func getUserData(userId int) map[string]interface{} {
 	host := os.Getenv("AUTH_SERVICE_HOST")
+	authToken := os.Getenv("AUTH_SERVICE_TOKEN")
 	url := host + "/user?id=" + strconv.Itoa(userId)
 
-	// Получаем токен с помощью авторизации
-	token, err := login()
-	if err != nil {
-		fmt.Println("auth error:", err)
-		return nil
-	}
-
-	// Создаем новый GET запрос
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		fmt.Println("creating request error:", err)
 		return nil
 	}
 
-	// Добавляем токен в cookie
 	req.AddCookie(&http.Cookie{
 		Name:  "Authorization",
-		Value: token,
+		Value: authToken,
 	})
 
-	// Создаем HTTP клиент и отправляем запрос
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -87,14 +43,12 @@ func getUserData(userId int) map[string]interface{} {
 	}
 	defer resp.Body.Close()
 
-	// Читаем тело ответа
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Println("Error read answer:", err)
 		return nil
 	}
 
-	// Декодируем JSON в map
 	var result map[string]interface{}
 	err = json.Unmarshal(body, &result)
 	if err != nil {
@@ -128,7 +82,6 @@ func NotifyUsers(event models.TaskEvent) {
 
 	writer := initializers.Writer
 
-	// ✅ Сериализуем payload в JSON
 	notificationPayload := NotificationPayload{
 		Event:       event.Event,
 		Title:       event.Title,
@@ -151,7 +104,7 @@ func NotifyUsers(event models.TaskEvent) {
 		kafkaMessage := KafkaMessage{
 			UserID:  userID,
 			Email:   email,
-			Message: string(payloadJSON), // 👈 теперь это корректный JSON как строка
+			Message: string(payloadJSON),
 		}
 		kafkaMessageJSON, err := json.Marshal(kafkaMessage)
 		if err != nil {
