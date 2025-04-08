@@ -53,9 +53,11 @@ func GetUsers(w http.ResponseWriter, r *http.Request) {
 	var users []models.User
 	db := initializers.DB
 
+	db = db.Where("\"group\" != ?", "admin")
+
 	if ids != "" {
 		idList := strings.Split(ids, ",")
-		// Filter out any empty strings from the idList
+		// Фильтруем пустые строки из списка id
 		var validIDs []string
 		for _, id := range idList {
 			if id != "" {
@@ -68,7 +70,7 @@ func GetUsers(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		} else {
-			// If no valid IDs are provided, return an empty list
+			// Если нет валидных ID, возвращаем пустой список
 			users = []models.User{}
 		}
 	} else {
