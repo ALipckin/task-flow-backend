@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -32,14 +33,12 @@ func main() {
 
 	r := gin.Default()
 
-	// Загрузка настроек CORS из .env
-	allowOrigins := os.Getenv("CORS_ALLOW_ORIGINS")
-	allowMethods := os.Getenv("CORS_ALLOW_METHODS")
-	allowHeaders := os.Getenv("CORS_ALLOW_HEADERS")
+	allowOrigins := strings.Split(os.Getenv("CORS_ALLOW_ORIGINS"), ",")
+	allowMethods := strings.Split(os.Getenv("CORS_ALLOW_METHODS"), ",")
+	allowHeaders := strings.Split(os.Getenv("CORS_ALLOW_HEADERS"), ",")
 	allowCredentials := os.Getenv("CORS_ALLOW_CREDENTIALS") == "true"
 	maxAge := os.Getenv("CORS_MAX_AGE")
 
-	// Преобразование maxAge в целое число
 	maxAgeDuration, err := time.ParseDuration(maxAge + "s")
 	if err != nil {
 		log.Fatalf("Invalid CORS_MAX_AGE value: %v", err)
@@ -47,11 +46,11 @@ func main() {
 
 	// Добавляем CORS middleware с настройками из .env
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{allowOrigins}, // Указываем конкретный origin
-		AllowMethods:     []string{allowMethods}, // Разрешенные HTTP методы
-		AllowHeaders:     []string{allowHeaders}, // Разрешенные заголовки
-		AllowCredentials: allowCredentials,       // Разрешение на использование cookies и авторизацию
-		MaxAge:           maxAgeDuration,         // Время кэширования CORS ответов
+		AllowOrigins:     allowOrigins,
+		AllowMethods:     allowMethods,
+		AllowHeaders:     allowHeaders,
+		AllowCredentials: allowCredentials,
+		MaxAge:           maxAgeDuration,
 	}))
 
 	r.GET("/", func(c *gin.Context) {
