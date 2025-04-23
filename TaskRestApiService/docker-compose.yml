@@ -2,15 +2,18 @@ version: '3.8'
 
 services:
   task-rest-api-service:
-    build: ./
+    build: ./docker/
     container_name: task-rest-api-service
     volumes:
       - .:/usr/local/bin/
     ports:
-      - "5437:8999"
+      - "5437:8999" # api port
+      - "2345:2345" # debugger port
     networks:
       - task-network
-    command: [ "CompileDaemon", "-command=go run main.go" ]
+    command: [
+      ./docker/debug.sh
+    ]
     depends_on:
       - kafka
     restart: always
