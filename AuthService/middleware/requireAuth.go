@@ -75,11 +75,16 @@ func userBelongsToGroup(user models.User, groupName string) bool {
 }
 
 func parseAndValidateToken(r *http.Request) (*jwt.Token, jwt.MapClaims, error) {
-	cookie, err := r.Cookie("Authorization")
-	if err != nil {
-		return nil, nil, fmt.Errorf("Unauthorized: %v", err)
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return nil, nil, fmt.Errorf("Unauthorized: No token provided")
 	}
-	tokenString := cookie.Value
+
+	if len(authHeader) < 7 || authHeader[:7] != "Bearer " {
+		return nil, nil, fmt.Errorf("Unauthorized: Invalid token format")
+	}
+
+	tokenString := authHeader[7:]
 	fmt.Println("TokenString:", tokenString)
 
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
@@ -97,10 +102,11 @@ func parseAndValidateToken(r *http.Request) (*jwt.Token, jwt.MapClaims, error) {
 	if !ok || !token.Valid {
 		return nil, nil, fmt.Errorf("Invalid token claims")
 	}
-	// Проверяем срок действия токена
+
 	if float64(time.Now().Unix()) > claims["exp"].(float64) {
 		fmt.Println("Expired token")
 		return nil, nil, fmt.Errorf("Token expired")
 	}
+
 	return token, claims, nil
 }

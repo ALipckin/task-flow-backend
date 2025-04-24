@@ -39,10 +39,7 @@ func GetUsersData(ids []int) ([]User, error) {
 		return nil, fmt.Errorf("failed to create request")
 	}
 
-	req.AddCookie(&http.Cookie{
-		Name:  "Authorization",
-		Value: authToken,
-	})
+	req.Header.Set("Authorization", authToken)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)

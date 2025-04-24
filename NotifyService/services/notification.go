@@ -30,10 +30,7 @@ func getUserData(userId int) map[string]interface{} {
 		return nil
 	}
 
-	req.AddCookie(&http.Cookie{
-		Name:  "Authorization",
-		Value: authToken,
-	})
+	req.Header.Set("Authorization", authToken)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)

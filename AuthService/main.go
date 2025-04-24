@@ -24,7 +24,6 @@ func main() {
 	http.HandleFunc("/login", controllers.Login)
 	http.HandleFunc("/register", controllers.SignUp)
 	http.Handle("/validate", middleware.RequireAuth(http.HandlerFunc(controllers.Validate)))
-	http.Handle("/logout", middleware.RequireAuth(http.HandlerFunc(controllers.Logout)))
 
 	//middleware.RequireAuthWithGroup("admin", http.HandlerFunc(controllers.GetUser)))
 	http.Handle("/user", middleware.RequireAuth(http.HandlerFunc(controllers.GetUser)))

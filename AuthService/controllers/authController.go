@@ -4,7 +4,6 @@ import (
 	"AuthService/initializers"
 	"AuthService/models"
 	"encoding/json"
-	"fmt"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 	"net/http"
@@ -36,7 +35,6 @@ func SignUp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Валидация входных данных
 	if body.Email == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Email is required"})
 		return
@@ -62,14 +60,12 @@ func SignUp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Хеширование пароля
 	hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), 10)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to hash password"})
 		return
 	}
 
-	// Создание пользователя
 	user := models.User{Email: body.Email, Password: string(hash), Name: body.Name}
 	result := initializers.DB.Create(&user)
 	if result.Error != nil {
@@ -117,27 +113,26 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to create token"})
 		return
 	}
-	fmt.Println("creating cooke")
-	http.SetCookie(w, &http.Cookie{
-		Name:     "Authorization",
-		Value:    tokenString,
-		Expires:  time.Now().Add(time.Hour * 24 * 30),
-		HttpOnly: true,
-		Path:     "/",
-	})
 
-	writeJSON(w, http.StatusOK, map[string]string{"message": "Login successful"})
+	writeJSON(w, http.StatusOK, map[string]string{
+		"message": "Login successful",
+		"token":   tokenString,
+	})
 }
 
-// Validate возвращает информацию о пользователе (заглушка)
 func Validate(w http.ResponseWriter, r *http.Request) {
-	cookie, err := r.Cookie("Authorization")
-	if err != nil {
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "No token provided"})
 		return
 	}
 
-	tokenString := cookie.Value
+	if len(authHeader) < 7 || authHeader[:7] != "Bearer " {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Invalid token format"})
+		return
+	}
+
+	tokenString := authHeader[7:]
 	claims := jwt.MapClaims{}
 
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
@@ -150,17 +145,4 @@ func Validate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Token is valid", "id": claims["user_id"], "email": claims["email"]})
-}
-
-func Logout(w http.ResponseWriter, r *http.Request) {
-
-	http.SetCookie(w, &http.Cookie{
-		Name:     "Authorization",
-		Value:    "",
-		Expires:  time.Now().Add(-time.Hour),
-		HttpOnly: true,
-		Path:     "/",
-	})
-
-	writeJSON(w, http.StatusOK, map[string]string{"message": "Logout successful"})
 }
