@@ -8,6 +8,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -117,6 +118,8 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{
 		"message": "Login successful",
 		"token":   tokenString,
+		"email":   user.Email,
+		"id":      strconv.Itoa(int(user.ID)),
 	})
 }
 
