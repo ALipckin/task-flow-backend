@@ -106,6 +106,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"email":   user.Email,
 		"user_id": user.ID,
+		"name":    user.Name,
 		"exp":     time.Now().Add(time.Hour * 24 * 30).Unix(),
 	})
 
@@ -119,6 +120,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		"message": "Login successful",
 		"token":   tokenString,
 		"email":   user.Email,
+		"name":    user.Name,
 		"id":      strconv.Itoa(int(user.ID)),
 	})
 }
@@ -147,5 +149,10 @@ func Validate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Token is valid", "id": claims["user_id"], "email": claims["email"]})
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message": "Token is valid",
+		"id":      claims["user_id"],
+		"email":   claims["email"],
+		"name":    claims["name"],
+	})
 }
