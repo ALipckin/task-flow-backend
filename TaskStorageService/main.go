@@ -2,6 +2,8 @@ package main
 
 import (
 	"TaskStorageService/initializers"
+	"TaskStorageService/logger"
+	"TaskStorageService/middleware"
 	"TaskStorageService/models"
 	"TaskStorageService/proto/server"
 	"TaskStorageService/proto/taskpb"
@@ -17,22 +19,27 @@ func init() {
 	models.ConnectToDB()
 	initializers.ConnectRedis()
 	initializers.InitProducer()
+	logger.Init()
 }
 
 func main() {
 	initializers.SyncDatabase(models.DB)
-	// Создаем gRPC-сервер
-	grpcServer := grpc.NewServer()
-	taskServer := &server.TaskServer{DB: models.DB}
+	grpcServer := grpc.NewServer(
+		grpc.UnaryInterceptor(middleware.UnaryLoggingInterceptor()),
+	)
+
+	taskServer := &server.TaskServer{
+		DB: models.DB,
+	}
 
 	taskpb.RegisterTaskServiceServer(grpcServer, taskServer)
 	port := ":" + os.Getenv("GRPC_PORT")
 	listener, err := net.Listen("tcp", port)
 	if err != nil {
-		log.Fatalf("Ошибка запуска сервера: %v", err)
+		log.Fatalf("Start error: %v", err)
 	}
 
-	fmt.Println("gRPC-сервер запущен на порту: ", port)
+	fmt.Println("gRPC-server start, port: ", port)
 	if err := grpcServer.Serve(listener); err != nil {
 		log.Fatalf("Ошибка запуска gRPC: %v", err)
 	}

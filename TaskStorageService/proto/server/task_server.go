@@ -35,7 +35,6 @@ func getTaskMessage(eventName string, task models.Task) []byte {
 	return messageJSON
 }
 
-// CreateTask создает новую задачу и добавляет в Redis
 func (s *TaskServer) CreateTask(ctx context.Context, req *taskpb.CreateTaskRequest) (*taskpb.TaskResponse, error) {
 	task := models.Task{
 		Title:       req.Title,
@@ -52,7 +51,6 @@ func (s *TaskServer) CreateTask(ctx context.Context, req *taskpb.CreateTaskReque
 		return nil, err
 	}
 
-	// Сохраняем в Redis
 	redisKey := fmt.Sprintf("task:%d", task.ID)
 	taskJSON, _ := json.Marshal(task)
 	initializers.RedisClient.Set(ctx, redisKey, taskJSON, 10*time.Minute)
@@ -65,11 +63,9 @@ func (s *TaskServer) CreateTask(ctx context.Context, req *taskpb.CreateTaskReque
 	return &taskpb.TaskResponse{Task: convertToProto(task)}, nil
 }
 
-// GetTask получает задачу сначала из Redis, затем из PostgreSQL
 func (s *TaskServer) GetTask(ctx context.Context, req *taskpb.GetTaskRequest) (*taskpb.TaskResponse, error) {
 	redisKey := fmt.Sprintf("task:%d", req.Id)
 
-	// Проверяем в Redis
 	taskJSON, err := initializers.RedisClient.Get(ctx, redisKey).Result()
 	if err == nil {
 		var task models.Task
@@ -77,7 +73,6 @@ func (s *TaskServer) GetTask(ctx context.Context, req *taskpb.GetTaskRequest) (*
 		return &taskpb.TaskResponse{Task: convertToProto(task)}, nil
 	}
 
-	// Если нет в Redis, загружаем из PostgreSQL
 	var task models.Task
 	if err := s.DB.First(&task, req.Id).Error; err != nil {
 		return nil, err
@@ -121,13 +116,10 @@ func (s *TaskServer) UpdateTask(ctx context.Context, req *taskpb.UpdateTaskReque
 	if err := s.DB.First(&task, req.Id).Error; err != nil {
 		return nil, err
 	}
-
-	// Удаляем существующих наблюдателей
 	if err := s.DB.Where("task_id = ?", task.ID).Delete(&models.Observer{}).Error; err != nil {
 		return nil, err
 	}
 
-	// Обновляем поля задачи
 	task.Title = req.Title
 	task.Description = req.Description
 	task.PerformerId = uint(req.PerformerId)
@@ -136,12 +128,10 @@ func (s *TaskServer) UpdateTask(ctx context.Context, req *taskpb.UpdateTaskReque
 	task.Status = req.Status
 	task.UpdatedAt = time.Now()
 
-	// Сохраняем обновленную задачу с новыми наблюдателями
 	if err := s.DB.Save(&task).Error; err != nil {
 		return nil, err
 	}
 
-	// Удаляем из Redis, чтобы при следующем запросе получить актуальные данные
 	redisKey := fmt.Sprintf("task:%d", task.ID)
 	initializers.RedisClient.Del(ctx, redisKey)
 
@@ -153,7 +143,6 @@ func (s *TaskServer) UpdateTask(ctx context.Context, req *taskpb.UpdateTaskReque
 	return &taskpb.TaskResponse{Task: convertToProto(task)}, nil
 }
 
-// DeleteTask удаляет задачу и очищает Redis
 func (s *TaskServer) DeleteTask(ctx context.Context, req *taskpb.DeleteTaskRequest) (*taskpb.DeleteTaskResponse, error) {
 	var task models.Task
 	if err := s.DB.First(&task, req.Id).Error; err != nil {
@@ -164,7 +153,6 @@ func (s *TaskServer) DeleteTask(ctx context.Context, req *taskpb.DeleteTaskReque
 		return nil, err
 	}
 
-	// Удаляем кэш Redis
 	redisKey := fmt.Sprintf("task:%d", req.Id)
 	initializers.RedisClient.Del(ctx, redisKey)
 
@@ -176,7 +164,6 @@ func (s *TaskServer) DeleteTask(ctx context.Context, req *taskpb.DeleteTaskReque
 	return &taskpb.DeleteTaskResponse{Message: "Task deleted"}, nil
 }
 
-// Конвертация модели в gRPC-структуру
 func convertToProto(task models.Task) *taskpb.Task {
 	return &taskpb.Task{
 		Id:          uint64(task.ID),
