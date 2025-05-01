@@ -7,54 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/segmentio/kafka-go"
-	"io/ioutil"
 	"log"
-	"net/http"
-	"os"
-	"strconv"
 )
-
-type LoginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-
-func getUserData(userId int) map[string]interface{} {
-	host := os.Getenv("AUTH_SERVICE_HOST")
-	authToken := os.Getenv("AUTH_SERVICE_TOKEN")
-	url := host + "/user?id=" + strconv.Itoa(userId)
-
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		fmt.Println("creating request error:", err)
-		return nil
-	}
-
-	req.Header.Set("Authorization", authToken)
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		fmt.Println("Request error:", err)
-		return nil
-	}
-	defer resp.Body.Close()
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		fmt.Println("Error read answer:", err)
-		return nil
-	}
-
-	var result map[string]interface{}
-	err = json.Unmarshal(body, &result)
-	if err != nil {
-		fmt.Println("Error pars JSON:", err)
-		return nil
-	}
-
-	return result
-}
 
 type KafkaMessage struct {
 	UserID  int    `json:"user_id"`
@@ -77,6 +31,11 @@ func NotifyUsers(event models.TaskEvent) {
 		uniqueUserIDs[userID] = struct{}{}
 	}
 
+	userIDs := make([]int, 0, len(uniqueUserIDs))
+	for id := range uniqueUserIDs {
+		userIDs = append(userIDs, id)
+	}
+
 	writer := initializers.Writer
 
 	notificationPayload := NotificationPayload{
@@ -89,18 +48,16 @@ func NotifyUsers(event models.TaskEvent) {
 		log.Fatalf("Error marshalling notification payload: %v", err)
 	}
 
-	for userID := range uniqueUserIDs {
-		userData := getUserData(userID)
-
-		email, ok := userData["email"].(string)
-		if !ok || email == "" {
-			log.Printf("⚠️ User %d has no valid email\n", userID)
-			continue
-		}
+	log.Printf("getting data for usersIds: ", userIDs)
+	usersData, err := GetUsersData(userIDs)
+	if err != nil {
+		log.Fatalf("Error getting users data", err)
+	}
+	for _, user := range usersData {
 
 		kafkaMessage := KafkaMessage{
-			UserID:  userID,
-			Email:   email,
+			UserID:  user.ID,
+			Email:   user.Email,
 			Message: string(payloadJSON),
 		}
 		kafkaMessageJSON, err := json.Marshal(kafkaMessage)
@@ -109,24 +66,23 @@ func NotifyUsers(event models.TaskEvent) {
 		}
 
 		kafkaMessageToSend := kafka.Message{
-			Key:   []byte(fmt.Sprintf("user_%d", userID)),
+			Key:   []byte(fmt.Sprintf("user_%d", user.ID)),
 			Value: kafkaMessageJSON,
 		}
 
 		err = writer.WriteMessages(context.Background(), kafkaMessageToSend)
 		if err != nil {
-			log.Printf("🚨 Failed to send Kafka message for User %d: %v\n", userID, err)
+			log.Printf("🚨 Failed to send Kafka message for User %d: %v\n", user.ID, err)
 		} else {
-			log.Printf("✅ Kafka message sent for User %d\n", userID)
+			log.Printf("✅ Kafka message sent for User %d\n", user.ID)
 		}
 
-		err = SendEmail(email, event.Event, event.Description)
+		err = SendEmail(user.Email, event.Event, event.Description)
 		if err != nil {
-			log.Printf("🚨 Failed to send email to %s: %v\n", email, err)
+			log.Printf("🚨 Failed to send email to %s: %v\n", user.Email, err)
 		} else {
-			log.Printf("✅ Email sent to %s\n", email)
+			log.Printf("✅ Email sent to %s\n", user.Email)
 		}
+		log.Printf("📢 Total unique users notified: %d\n", len(uniqueUserIDs))
 	}
-
-	log.Printf("📢 Total unique users notified: %d\n", len(uniqueUserIDs))
 }
