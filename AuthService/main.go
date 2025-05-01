@@ -21,14 +21,14 @@ func main() {
 		return
 	}
 	fmt.Println("Auth service token: ", token)
-	http.HandleFunc("/login", controllers.Login)
-	http.HandleFunc("/register", controllers.SignUp)
-	http.Handle("/validate", middleware.RequireAuth(http.HandlerFunc(controllers.Validate)))
+	mux := http.NewServeMux()
+	mux.HandleFunc("/login", controllers.Login)
+	mux.HandleFunc("/register", controllers.SignUp)
+	mux.Handle("/validate", middleware.RequireAuth(http.HandlerFunc(controllers.Validate)))
 
-	//middleware.RequireAuthWithGroup("admin", http.HandlerFunc(controllers.GetUser)))
-	http.Handle("/user", middleware.RequireAuth(http.HandlerFunc(controllers.GetUser)))
-	http.Handle("/users", middleware.RequireAuth(http.HandlerFunc(controllers.GetUsers)))
+	mux.Handle("/user", middleware.RequireAuth(http.HandlerFunc(controllers.GetUser)))
+	mux.Handle("/users", middleware.RequireAuth(http.HandlerFunc(controllers.GetUsers)))
 
 	fmt.Println("Server started on :8081")
-	http.ListenAndServe(":8081", nil)
+	http.ListenAndServe(":8081", middleware.LoggerMiddleware(mux))
 }

@@ -7,7 +7,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"net/http"
 	"os"
-	"strconv"
 	"time"
 )
 
@@ -25,39 +24,6 @@ func RequireAuth(next http.Handler) http.Handler {
 		if user.ID == 0 {
 			fmt.Println("USER NOT FOUND")
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		r = r.WithContext(models.WithUser(r.Context(), &user))
-
-		next.ServeHTTP(w, r)
-	})
-}
-
-func RequireAuthWithGroup(groupName string, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Получаем и проверяем токен из куков
-		_, claims, err := parseAndValidateToken(r)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusUnauthorized)
-			return
-		}
-
-		// Ищем пользователя в базе данных
-		var user models.User
-
-		initializers.DB.First(&user, claims["user_id"])
-
-		if user.ID == 0 {
-			fmt.Println("USER NOT FOUND")
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		// Проверяем, принадлежит ли пользователь нужной группе
-		if !userBelongsToGroup(user, groupName) {
-			fmt.Println("User " + strconv.Itoa(user.ID) + " does not belong to the required group: userGroup " + user.Group + "!=" + groupName)
-			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
 		}
 
@@ -85,7 +51,6 @@ func parseAndValidateToken(r *http.Request) (*jwt.Token, jwt.MapClaims, error) {
 	}
 
 	tokenString := authHeader[7:]
-	fmt.Println("TokenString:", tokenString)
 
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
