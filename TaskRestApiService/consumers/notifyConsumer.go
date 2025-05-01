@@ -1,6 +1,7 @@
 package consumers
 
 import (
+	"TaskRestApiService/services"
 	"encoding/json"
 	"github.com/IBM/sarama"
 	"github.com/gin-gonic/gin"
@@ -16,7 +17,6 @@ import (
 var KafkaConsumer sarama.Consumer
 var clients = make(map[*websocket.Conn]string) // Список WebSocket клиентов с их user_id
 
-// WebSocket настройки
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		return true
@@ -39,27 +39,48 @@ type EventDataMessage struct {
 func HandleWebSocketConnection(c *gin.Context) {
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		log.Println("Error connection to WebSocket:", err)
+		log.Println("Error upgrading to WebSocket:", err)
 		return
 	}
 	defer conn.Close()
 
-	userID, exists := c.Get("user_id")
-	if !exists {
-		log.Println("No user ID found in context")
-		conn.Close()
+	_, msg, err := conn.ReadMessage()
+	if err != nil {
+		log.Println("Error reading auth message:", err)
 		return
 	}
 
-	// Добавляем клиента и его user_id в карту
-	clients[conn] = strconv.Itoa(userID.(int))
-	log.Println("New WebSocket client connected with user_id:", userID)
+	var authData struct {
+		Type  string `json:"type"`
+		Token string `json:"token"`
+	}
+	err = json.Unmarshal(msg, &authData)
+	if err != nil {
+		log.Println("Error parsing auth message:", err)
+		conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseUnsupportedData, "Invalid auth format"))
+		return
+	}
 
-	// Ожидаем закрытия соединения
+	if authData.Type != "authenticate" || authData.Token == "" {
+		log.Println("Invalid auth message received")
+		conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseUnsupportedData, "Invalid auth data"))
+		return
+	}
+
+	user, err := services.ValidateToken(authData.Token)
+	if err != nil {
+		log.Println("Invalid token:", err)
+		conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "Invalid token"))
+		return
+	}
+
+	clients[conn] = strconv.Itoa(user.ID)
+	log.Println("New WebSocket client authenticated, user_id:", user.ID)
+
 	for {
 		_, _, err := conn.ReadMessage()
 		if err != nil {
-			log.Println("Error reading message", err)
+			log.Println("Error reading message:", err)
 			delete(clients, conn)
 			break
 		}
@@ -69,7 +90,6 @@ func HandleWebSocketConnection(c *gin.Context) {
 func BroadcastToClients(message []byte, userID int) {
 	log.Println("Broadcasting message to clients")
 	for client, clientID := range clients {
-		// Отправляем сообщение только клиенту с соответствующим user_id
 		if clientID == strconv.Itoa(userID) {
 			err := client.WriteMessage(websocket.TextMessage, message)
 			if err != nil {

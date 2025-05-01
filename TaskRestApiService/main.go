@@ -66,8 +66,8 @@ func main() {
 		tasksGroup.GET("/:id", taskController.TasksShow)
 		tasksGroup.PUT("/:id", taskController.TasksUpdate)
 		tasksGroup.DELETE("/:id", taskController.TasksDelete)
-		tasksGroup.GET("/notifications", consumers.HandleWebSocketConnection)
 	}
+	r.GET("/tasks/notifications", consumers.HandleWebSocketConnection)
 
 	authGroup := r.Group("/auth")
 	{
