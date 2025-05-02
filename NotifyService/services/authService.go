@@ -3,7 +3,6 @@ package services
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -29,10 +28,8 @@ func GetUsersData(ids []int) ([]User, error) {
 	}
 
 	url := fmt.Sprintf("%s/users?ids=%s", authServiceURL, strings.Join(idStrings, ","))
-	log.Printf("Request URL: %s", url)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		log.Printf("Error creating request: %v", err)
 		return nil, fmt.Errorf("failed to create request")
 	}
 
@@ -41,7 +38,6 @@ func GetUsersData(ids []int) ([]User, error) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Printf("Error fetching users data: %v", err)
 		return nil, fmt.Errorf("failed to fetch users data")
 	}
 

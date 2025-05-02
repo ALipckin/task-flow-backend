@@ -2,12 +2,12 @@ package services
 
 import (
 	"NotifyService/initializers"
+	"NotifyService/logger"
 	"NotifyService/models"
 	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/segmentio/kafka-go"
-	"log"
 )
 
 type KafkaMessage struct {
@@ -24,7 +24,10 @@ type NotificationPayload struct {
 
 func NotifyUsers(event models.TaskEvent) {
 	recipients := append(event.ObserversIDs, event.PerformerID, event.CreatorID)
-	log.Printf("📩 Sending notification to users: %v\n", recipients)
+
+	logger.Log(logger.LevelInfo, "Sending notification to users", map[string]any{
+		"recipients": recipients,
+	})
 
 	uniqueUserIDs := make(map[int]struct{})
 	for _, userID := range recipients {
@@ -45,16 +48,25 @@ func NotifyUsers(event models.TaskEvent) {
 	}
 	payloadJSON, err := json.Marshal(notificationPayload)
 	if err != nil {
-		log.Fatalf("Error marshalling notification payload: %v", err)
+		logger.Log(logger.LevelError, "Failed to marshal notification payload", map[string]any{
+			"error": err.Error(),
+		})
+		return
 	}
 
-	log.Printf("getting data for usersIds: ", userIDs)
+	logger.Log(logger.LevelInfo, "Getting data for user IDs", map[string]any{
+		"user_ids": userIDs,
+	})
+
 	usersData, err := GetUsersData(userIDs)
 	if err != nil {
-		log.Fatalf("Error getting users data", err)
+		logger.Log(logger.LevelError, "Failed to get users data", map[string]any{
+			"error": err.Error(),
+		})
+		return
 	}
-	for _, user := range usersData {
 
+	for _, user := range usersData {
 		kafkaMessage := KafkaMessage{
 			UserID:  user.ID,
 			Email:   user.Email,
@@ -62,7 +74,11 @@ func NotifyUsers(event models.TaskEvent) {
 		}
 		kafkaMessageJSON, err := json.Marshal(kafkaMessage)
 		if err != nil {
-			log.Fatalf("Error marshaling Kafka message: %v", err)
+			logger.Log(logger.LevelError, "Failed to marshal Kafka message", map[string]any{
+				"error":   err.Error(),
+				"user_id": user.ID,
+			})
+			continue
 		}
 
 		kafkaMessageToSend := kafka.Message{
@@ -72,17 +88,32 @@ func NotifyUsers(event models.TaskEvent) {
 
 		err = writer.WriteMessages(context.Background(), kafkaMessageToSend)
 		if err != nil {
-			log.Printf("🚨 Failed to send Kafka message for User %d: %v\n", user.ID, err)
+			logger.Log(logger.LevelError, "Failed to send Kafka message", map[string]any{
+				"user_id": user.ID,
+				"error":   err.Error(),
+				"message": kafkaMessageToSend,
+			})
 		} else {
-			log.Printf("✅ Kafka message sent for User %d\n", user.ID)
+			logger.Log(logger.LevelInfo, "Kafka message sent", map[string]any{
+				"user_id": user.ID,
+				"message": kafkaMessageToSend,
+			})
 		}
 
 		err = SendEmail(user.Email, event.Event, event.Description)
 		if err != nil {
-			log.Printf("🚨 Failed to send email to %s: %v\n", user.Email, err)
+			logger.Log(logger.LevelError, "Failed to send email", map[string]any{
+				"email": user.Email,
+				"error": err.Error(),
+			})
 		} else {
-			log.Printf("✅ Email sent to %s\n", user.Email)
+			logger.Log(logger.LevelInfo, "Email sent", map[string]any{
+				"email": user.Email,
+			})
 		}
-		log.Printf("📢 Total unique users notified: %d\n", len(uniqueUserIDs))
 	}
+
+	logger.Log(logger.LevelInfo, "Total unique users notified", map[string]any{
+		"count": len(uniqueUserIDs),
+	})
 }

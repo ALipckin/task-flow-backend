@@ -1,19 +1,22 @@
 package services
 
 import (
-	"fmt"
+	"NotifyService/logger"
 	"github.com/jordan-wright/email"
 	"net/smtp"
 	"os"
 )
 
 func SendEmail(to, subject, body string) error {
+	logger.Log(logger.LevelInfo, "Sending email", map[string]any{
+		"to":      to,
+		"subject": subject,
+	})
 	SMTPHost := os.Getenv("SMTP_HOST")
 	SMTPPort := os.Getenv("SMTP_PORT")
 	SenderEmail := os.Getenv("SENDER_EMAIL")
 	SenderPass := os.Getenv("SENDER_PASSWORD")
 
-	// Создаем объект email
 	e := email.NewEmail()
 	e.From = SenderEmail
 	e.To = []string{to}
@@ -21,12 +24,10 @@ func SendEmail(to, subject, body string) error {
 	e.Text = []byte(body)
 
 	a := smtp.CRAMMD5Auth(SenderEmail, SenderPass)
-	// Отправка без TLS
 	err := e.Send(SMTPHost+":"+SMTPPort, a)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("Письмо успешно отправлено!")
 	return nil
 }
