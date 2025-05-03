@@ -1,4 +1,4 @@
-version: '3.8'
+version: '2.4'
 
 services:
   task-rest-api-service:
@@ -26,7 +26,6 @@ services:
       ZOOKEEPER_CLIENT_PORT: 2181
     networks:
       - task-network
-
   kafka:
     image: confluentinc/cp-kafka:latest
     container_name: kafka
@@ -44,7 +43,7 @@ services:
       - zookeeper
     healthcheck:
       test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 5
   fluentd:
@@ -80,7 +79,6 @@ services:
       - "9200:9200"
     networks:
         - task-network
-
   # Kibana для визуализации логов
   kibana:
     image: docker.elastic.co/kibana/kibana:8.17.1
@@ -92,11 +90,9 @@ services:
       - "5601:5601"
     networks:
       - task-network
-
 networks:
   task-network:
     external: true
-
 volumes:
   esdata:
     driver: local
