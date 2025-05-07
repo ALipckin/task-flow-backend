@@ -1,6 +1,17 @@
 version: '3.8'
 
 services:
+  fluentd:
+    build: fluentd
+    ports:
+      - "24224:24224"
+      - "24224:24224/udp"
+    volumes:
+      - ./fluentd/fluent.conf:/fluentd/etc/fluent.conf
+    environment:
+      - FLUENTD_CONF=fluent.conf
+    networks:
+      - task-network
   task-rest-api-service:
     build: ./docker/
     container_name: task-rest-api-service
@@ -17,6 +28,13 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
+      fluentd:
+        condition: service_started
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: localhost:24224
+        tag: docker.task-rest-api-service
     restart: always
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
@@ -47,23 +65,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-  fluentd:
-    build: ./fluentd
-    volumes:
-      - ./fluentd/fluent.conf:/fluentd/etc/fluent.conf
-    restart: always
-    depends_on:
-      kafka:
-        condition: service_healthy
-      elasticsearch:
-        condition: service_healthy
-    ports:
-      - "24224:24224"
-      - "24224:24224/udp"
-    networks:
-      - task-network
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.1
+    image: elasticsearch:7.17.17
     container_name: elasticsearch
     hostname: elasticsearch
     restart: always
@@ -83,7 +86,7 @@ services:
 
   # Kibana для визуализации логов
   kibana:
-    image: docker.elastic.co/kibana/kibana:8.17.1
+    image: kibana:7.17.17
     container_name: kibana
     restart: always
     depends_on:

@@ -9,6 +9,11 @@ services:
     networks:
       - task-network
     command: [ "CompileDaemon", "-command=go run main.go" ]
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: localhost:24224
+        tag: docker.notify-service
   mailhog:
     image: mailhog/mailhog
     container_name: mailhog

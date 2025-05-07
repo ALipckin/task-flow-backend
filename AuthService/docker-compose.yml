@@ -11,6 +11,11 @@ services:
     networks:
       - task-network
     command: [ "CompileDaemon", "-command=go run main.go" ]
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: localhost:24224
+        tag: docker.auth-service
   auth-db:
     image: postgres:14
     container_name: auth-db
