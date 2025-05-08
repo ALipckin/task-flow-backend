@@ -1,20 +1,18 @@
 package controllers
 
 import (
-	"TaskRestApiService/initializers"
+	"TaskRestApiService/logger"
 	"github.com/gin-gonic/gin"
-	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 )
 
 func ProxyRequest(c *gin.Context, targetURL string) {
-	log.Printf("Proxying request to %s", targetURL)
-	initializers.LogToKafka("info", "ProxyRequest", "Proxy", targetURL)
+	logger.Log(logger.LevelInfo, "ProxyRequest", gin.H{"targetURL": targetURL})
 	parsedURL, err := url.Parse(targetURL)
 	if err != nil {
-		initializers.LogToKafka("error", "ProxyRequest", "Failed to proxy", err.Error())
+		logger.Log(logger.LevelError, "Failed to proxy", gin.H{"error": err.Error()})
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid target URL"})
 		return
 	}

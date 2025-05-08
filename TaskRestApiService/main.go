@@ -32,6 +32,7 @@ func main() {
 	taskController := controllers.NewTaskController(grpcClient)
 
 	r := gin.Default()
+	r.Use(middleware.LoggerMiddleware())
 
 	allowOrigins := strings.Split(os.Getenv("CORS_ALLOW_ORIGINS"), ",")
 	allowMethods := strings.Split(os.Getenv("CORS_ALLOW_METHODS"), ",")
@@ -44,7 +45,6 @@ func main() {
 		log.Fatalf("Invalid CORS_MAX_AGE value: %v", err)
 	}
 
-	// Добавляем CORS middleware с настройками из .env
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     allowOrigins,
 		AllowMethods:     allowMethods,
