@@ -1,6 +1,14 @@
 FROM golang:1.24.0-alpine
 
-RUN apk add --no-cache libc6-compat bash git
+ENV CGO_ENABLED=1
+
+RUN apk add --no-cache \
+    bash \
+    git \
+    gcc \
+    musl-dev \
+    libc6-compat \
+    sqlite-dev
 
 WORKDIR /usr/local/bin/
 
