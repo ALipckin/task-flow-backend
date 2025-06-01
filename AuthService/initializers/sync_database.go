@@ -6,6 +6,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 	"log"
+	"os"
 )
 
 func SyncDatabase(db *gorm.DB) {
@@ -16,7 +17,8 @@ func SyncDatabase(db *gorm.DB) {
 
 	var count int64
 	db.Model(&models.User{}).Count(&count)
-	hash, _ := bcrypt.GenerateFromPassword([]byte("VqjHgT[b6F"), 10)
+	passwordString := os.Getenv("ADMIN_PASS")
+	hash, _ := bcrypt.GenerateFromPassword([]byte(passwordString), 10)
 
 	if count == 0 {
 		user := models.User{
