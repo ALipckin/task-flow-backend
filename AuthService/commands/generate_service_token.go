@@ -10,9 +10,11 @@ import (
 func GenerateAdminToken() (string, error) {
 	authTokenKey := "AUTH_SERVICE_TOKEN"
 	tokenString := os.Getenv(authTokenKey)
+	emailString := os.Getenv("ADMIN_EMAIL")
+
 	if tokenString == "" {
 		token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-			"email":   "admin@admin.admin",
+			"email":   emailString,
 			"user_id": 1,
 			"exp":     time.Now().Add(time.Hour * 24 * 999).Unix(),
 		})

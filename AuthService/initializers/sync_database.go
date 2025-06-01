@@ -17,12 +17,13 @@ func SyncDatabase(db *gorm.DB) {
 
 	var count int64
 	db.Model(&models.User{}).Count(&count)
+	emailString := os.Getenv("ADMIN_EMAIL")
 	passwordString := os.Getenv("ADMIN_PASS")
 	hash, _ := bcrypt.GenerateFromPassword([]byte(passwordString), 10)
 
 	if count == 0 {
 		user := models.User{
-			Email:    "admin@admin.admin",
+			Email:    emailString,
 			Group:    "admin",
 			Name:     "admin",
 			Password: string(hash),
