@@ -1,36 +1,35 @@
 package middleware
 
 import (
-	"AuthService/initializers"
 	"AuthService/models"
 	"fmt"
 	"github.com/golang-jwt/jwt/v5"
+	"gorm.io/gorm"
 	"net/http"
 	"os"
 	"time"
 )
 
-func RequireAuth(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, claims, err := parseAndValidateToken(r)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusUnauthorized)
-			return
-		}
+func RequireAuth(db *gorm.DB) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, claims, err := parseAndValidateToken(r)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusUnauthorized)
+				return
+			}
 
-		var user models.User
-		initializers.DB.First(&user, claims["sub"])
+			var user models.User
+			if err := db.First(&user, claims["sub"]).Error; err != nil {
+				fmt.Println("USER NOT FOUND:", err)
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
 
-		if user.ID == 0 {
-			fmt.Println("USER NOT FOUND")
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		r = r.WithContext(models.WithUser(r.Context(), &user))
-
-		next.ServeHTTP(w, r)
-	})
+			r = r.WithContext(models.WithUser(r.Context(), &user))
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func userBelongsToGroup(user models.User, groupName string) bool {

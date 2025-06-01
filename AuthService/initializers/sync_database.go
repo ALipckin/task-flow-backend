@@ -4,18 +4,20 @@ import (
 	"AuthService/models"
 	"fmt"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 	"log"
 )
 
-func SyncDatabase() {
-	err := DB.AutoMigrate(&models.User{})
+func SyncDatabase(db *gorm.DB) {
+	err := db.AutoMigrate(&models.User{})
 	if err != nil {
-		return
+		log.Fatal("Ошибка миграции:", err)
 	}
 
 	var count int64
-	DB.Model(&models.User{}).Count(&count)
+	db.Model(&models.User{}).Count(&count)
 	hash, _ := bcrypt.GenerateFromPassword([]byte("VqjHgT[b6F"), 10)
+
 	if count == 0 {
 		user := models.User{
 			Email:    "admin@admin.admin",
@@ -24,7 +26,7 @@ func SyncDatabase() {
 			Password: string(hash),
 		}
 
-		if err := DB.Create(&user).Error; err != nil {
+		if err := db.Create(&user).Error; err != nil {
 			log.Fatal("Ошибка при создании пользователя:", err)
 		} else {
 			fmt.Println("Администратор создан успешно.")

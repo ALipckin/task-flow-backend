@@ -6,13 +6,16 @@ import (
 	"AuthService/initializers"
 	"AuthService/middleware"
 	"fmt"
+	"gorm.io/gorm"
 	"net/http"
 )
 
+var DB *gorm.DB
+
 func init() {
 	initializers.LoadEnvVariables()
-	initializers.ConnectToDB()
-	initializers.SyncDatabase()
+	DB = initializers.SetUpDB()
+	initializers.SyncDatabase(DB)
 }
 
 func main() {
@@ -20,14 +23,26 @@ func main() {
 	if err != nil {
 		return
 	}
-	fmt.Println("Auth service token: ", token)
-	mux := http.NewServeMux()
-	mux.HandleFunc("/login", controllers.Login)
-	mux.HandleFunc("/register", controllers.SignUp)
-	mux.Handle("/validate", middleware.RequireAuth(http.HandlerFunc(controllers.Validate)))
+	fmt.Println("Auth service token:", token)
 
-	mux.Handle("/user", middleware.RequireAuth(http.HandlerFunc(controllers.GetUser)))
-	mux.Handle("/users", middleware.RequireAuth(http.HandlerFunc(controllers.GetUsers)))
+	mux := http.NewServeMux()
+
+	authController := controllers.AuthController{
+		DB: DB,
+	}
+	userController := controllers.UserController{
+		DB: DB,
+	}
+
+	authMiddleware := middleware.RequireAuth(DB)
+
+	mux.HandleFunc("/login", authController.Login)
+	mux.HandleFunc("/register", authController.SignUp)
+
+	mux.Handle("/validate", authMiddleware(http.HandlerFunc(authController.Validate)))
+
+	mux.Handle("/user", authMiddleware(http.HandlerFunc(userController.GetUser)))
+	mux.Handle("/users", authMiddleware(http.HandlerFunc(userController.GetUsers)))
 
 	fmt.Println("Server started on :8081")
 	http.ListenAndServe(":8081", middleware.LoggerMiddleware(mux))

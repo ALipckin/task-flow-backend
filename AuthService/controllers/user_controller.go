@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"AuthService/initializers"
 	"AuthService/models"
 	"encoding/json"
 	"net/http"
@@ -17,11 +16,15 @@ type Response struct {
 	Name  string `json:"name"`
 }
 
-func GetUser(w http.ResponseWriter, r *http.Request) {
+type UserController struct {
+	DB *gorm.DB
+}
+
+func (uc UserController) GetUser(w http.ResponseWriter, r *http.Request) {
 	queryParams := r.URL.Query()
 	id := queryParams.Get("id")
 	var user models.User
-	if err := initializers.DB.First(&user, id).Error; err != nil {
+	if err := uc.DB.First(&user, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			http.Error(w, "User not found", http.StatusNotFound)
 		} else {
@@ -41,7 +44,7 @@ func GetUser(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(userResponse)
 }
 
-func GetUsers(w http.ResponseWriter, r *http.Request) {
+func (uc UserController) GetUsers(w http.ResponseWriter, r *http.Request) {
 	queryParams := r.URL.Query()
 	ids := queryParams.Get("ids")
 	search := queryParams.Get("search")
@@ -51,9 +54,8 @@ func GetUsers(w http.ResponseWriter, r *http.Request) {
 	limit = queryParams.Get("limit")
 
 	var users []models.User
-	db := initializers.DB
 
-	db = db.Where("\"group\" != ?", "admin")
+	db := uc.DB.Where("\"group\" != ?", "admin")
 
 	if ids != "" {
 		idList := strings.Split(ids, ",")

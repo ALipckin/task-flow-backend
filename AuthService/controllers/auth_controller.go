@@ -1,17 +1,21 @@
 package controllers
 
 import (
-	"AuthService/initializers"
 	"AuthService/logger"
 	"AuthService/models"
 	"encoding/json"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 	"net/http"
 	"os"
 	"strconv"
 	"time"
 )
+
+type AuthController struct {
+	DB *gorm.DB
+}
 
 type RequestBody struct {
 	Email    string `json:"email"`
@@ -25,7 +29,7 @@ func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 	json.NewEncoder(w).Encode(data)
 }
 
-func SignUp(w http.ResponseWriter, r *http.Request) {
+func (ac *AuthController) SignUp(w http.ResponseWriter, r *http.Request) {
 	logger.Log(logger.LevelInfo, "Sign-up request received", map[string]any{
 		"method": r.Method,
 		"ip":     r.RemoteAddr,
@@ -69,7 +73,7 @@ func SignUp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user := models.User{Email: body.Email, Password: string(hash), Name: body.Name}
-	result := initializers.DB.Create(&user)
+	result := ac.DB.Create(&user)
 	if result.Error != nil {
 		logger.Log(logger.LevelError, "Database error during user creation", result.Error.Error())
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Failed to create user"})
@@ -83,7 +87,7 @@ func SignUp(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"message": "User created successfully"})
 }
 
-func Login(w http.ResponseWriter, r *http.Request) {
+func (ac *AuthController) Login(w http.ResponseWriter, r *http.Request) {
 	logger.Log(logger.LevelInfo, "Login request received", map[string]any{
 		"method": r.Method,
 		"ip":     r.RemoteAddr,
@@ -105,7 +109,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var user models.User
-	initializers.DB.First(&user, "email = ?", body.Email)
+	ac.DB.First(&user, "email = ?", body.Email)
 
 	if user.ID == 0 {
 		logger.Log(logger.LevelWarn, "Login failed: user not found", body.Email)
@@ -147,7 +151,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func Validate(w http.ResponseWriter, r *http.Request) {
+func (ac *AuthController) Validate(w http.ResponseWriter, r *http.Request) {
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
 		logger.Log(logger.LevelWarn, "Missing Authorization header", nil)
