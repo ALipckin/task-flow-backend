@@ -119,7 +119,7 @@ func TestLogin_TableDriven(t *testing.T) {
 				db.Create(&models.User{
 					Email:    "john@example.com",
 					Password: string(hashed),
-					Name:     "John_" + tt.name, // уникальный name
+					Name:     "John_" + tt.name,
 				})
 			}
 
