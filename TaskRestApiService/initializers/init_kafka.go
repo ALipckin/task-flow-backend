@@ -2,10 +2,11 @@ package initializers
 
 import (
 	"TaskRestApiService/consumers"
-	"github.com/IBM/sarama"
 	"log"
 	"os"
 	"time"
+
+	"github.com/IBM/sarama"
 )
 
 var KafkaProducer sarama.SyncProducer
