@@ -7,6 +7,8 @@ import (
 	"TaskRestApiService/middleware"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/swaggo/files"
+	"github.com/swaggo/gin-swagger"
 	"log"
 	"net/http"
 	"os"
@@ -19,6 +21,20 @@ func init() {
 	initializers.InitProducer()
 	initializers.InitConsumer()
 }
+
+// @title Task REST API
+// @version 0.1
+// @description This is a REST API for managing tasks
+// @termsOfService http://swagger.io/terms/
+
+// @BasePath /
+
+// @schemes http
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Type "Bearer" followed by a space and JWT token. Example: "Bearer {token}"
 
 func main() {
 	defer initializers.KafkaProducer.Close()
@@ -52,6 +68,15 @@ func main() {
 		AllowCredentials: allowCredentials,
 		MaxAge:           maxAgeDuration,
 	}))
+
+	// @Summary Health check
+	// @Description Returns API status
+	// @Tags health
+	// @Produce json
+	// @Success 200 {object} map[string]string
+	// @Router / [get]
+
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	r.GET("/", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{

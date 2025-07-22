@@ -1,1 +1,7 @@
 TaskRestApiService
+
+# Swaggo auto-generated docs
+docs/*
+
+# Keep docs folder but ignore its contents
+!docs/.gitkeep
