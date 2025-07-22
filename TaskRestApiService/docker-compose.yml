@@ -37,7 +37,7 @@ services:
         tag: docker.task-rest-api-service
     restart: always
   zookeeper:
-    image: confluentinc/cp-zookeeper:latest
+    image: confluentinc/cp-zookeeper:7.5.3
     container_name: zookeeper
     restart: always
     environment:
@@ -45,7 +45,7 @@ services:
     networks:
       - task-network
   kafka:
-    image: confluentinc/cp-kafka:latest
+    image: confluentinc/cp-kafka:7.5.3
     container_name: kafka
     restart: always
     ports:
@@ -55,6 +55,7 @@ services:
       KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_ENABLE_KRAFT: "false"
     networks:
       - task-network
     depends_on:
