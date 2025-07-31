@@ -3,6 +3,7 @@ package main
 import (
 	"TaskRestApiService/consumers"
 	"TaskRestApiService/controllers"
+	_ "TaskRestApiService/docs"
 	"TaskRestApiService/initializers"
 	"TaskRestApiService/middleware"
 	"github.com/gin-contrib/cors"
@@ -46,7 +47,8 @@ func main() {
 
 	grpcClient := initializers.InitTaskStorageService()
 	taskController := controllers.NewTaskController(grpcClient)
-
+	authHost := os.Getenv("AUTH_SERVICE_URL")
+	authController := controllers.NewAuthController(authHost)
 	r := gin.Default()
 	r.Use(middleware.LoggerMiddleware())
 
@@ -69,13 +71,6 @@ func main() {
 		MaxAge:           maxAgeDuration,
 	}))
 
-	// @Summary Health check
-	// @Description Returns API status
-	// @Tags health
-	// @Produce json
-	// @Success 200 {object} map[string]string
-	// @Router / [get]
-
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	r.GET("/", func(c *gin.Context) {
@@ -96,35 +91,12 @@ func main() {
 
 	authGroup := r.Group("/auth")
 	{
-		authHost := os.Getenv("AUTH_SERVICE_URL")
-
-		authGroup.POST("/login", func(c *gin.Context) {
-			log.Printf("received request")
-			targetURL := c.DefaultQuery("url", authHost+"/login")
-
-			controllers.ProxyRequest(c, targetURL)
-		})
-		authGroup.POST("/register", func(c *gin.Context) {
-			targetURL := c.DefaultQuery("url", authHost+"/register")
-
-			controllers.ProxyRequest(c, targetURL)
-		})
-		authGroup.GET("/validate", func(c *gin.Context) {
-			targetURL := c.DefaultQuery("url", authHost+"/validate")
-			controllers.ProxyRequest(c, targetURL)
-		})
-		authGroup.GET("/users", func(c *gin.Context) {
-			targetURL := c.DefaultQuery("url", authHost+"/users")
-			controllers.ProxyRequest(c, targetURL)
-		})
-		authGroup.GET("/user", func(c *gin.Context) {
-			targetURL := c.DefaultQuery("url", authHost+"/user")
-			controllers.ProxyRequest(c, targetURL)
-		})
-		authGroup.POST("/logout", func(c *gin.Context) {
-			targetURL := c.DefaultQuery("url", authHost+"/logout")
-			controllers.ProxyRequest(c, targetURL)
-		})
+		authGroup.POST("/login", authController.Login)
+		authGroup.POST("/register", authController.Register)
+		authGroup.GET("/validate", authController.Validate)
+		authGroup.GET("/users", authController.Users)
+		authGroup.GET("/user", authController.User)
+		authGroup.POST("/logout", authController.Logout)
 	}
 
 	r.Run()

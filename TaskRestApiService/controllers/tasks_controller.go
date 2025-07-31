@@ -17,6 +17,18 @@ func NewTaskController(grpcClient pb.TaskServiceClient) *TaskController {
 	return &TaskController{GRPCClient: grpcClient}
 }
 
+// Create Task
+// @Summary      Create a new task
+// @Description  Creates a task with title, description, creator, performer, etc.
+// @Tags         tasks
+// @Accept       json
+// @Produce      json
+// @Param        task  body      pb.CreateTaskRequest  true  "Task input"
+// @Success      201   {object}  map[string]interface{}
+// @Failure      400   {object}  map[string]string
+// @Failure      500   {object}  map[string]string
+// @Security     BearerAuth
+// @Router       /tasks [post]
 func (tc *TaskController) TasksCreate(c *gin.Context) {
 	var req pb.CreateTaskRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -36,6 +48,19 @@ func (tc *TaskController) TasksCreate(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"data": resp})
 }
 
+// List Tasks
+// @Summary      Get list of tasks
+// @Description  Retrieves a list of tasks based on optional filters
+// @Tags         tasks
+// @Produce      json
+// @Param        title        query     string  false  "Filter by title"
+// @Param        creator_id   query     uint64  false  "Filter by creator ID"
+// @Param        performer_id query     uint64  false  "Filter by performer ID"
+// @Success      200  {object}  map[string]interface{}
+// @Failure      400  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Security     BearerAuth
+// @Router       /tasks [get]
 func (tc *TaskController) TasksIndex(c *gin.Context) {
 	title := c.Query("title")
 	creatorID := c.Query("creator_id")
@@ -78,6 +103,17 @@ func (tc *TaskController) TasksIndex(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": resp.Tasks})
 }
 
+// Get Task by ID
+// @Summary      Get task by ID
+// @Description  Retrieves a single task by its ID
+// @Tags         tasks
+// @Produce      json
+// @Param        id   path      uint64  true  "Task ID"
+// @Success      200  {object}  map[string]interface{}
+// @Failure      400  {object}  map[string]string
+// @Failure      404  {object}  map[string]string
+// @Security     BearerAuth
+// @Router       /tasks/{id} [get]
 func (tc *TaskController) TasksShow(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 64)
@@ -98,6 +134,19 @@ func (tc *TaskController) TasksShow(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": resp.Task})
 }
 
+// Update Task
+// @Summary      Update a task
+// @Description  Updates an existing task with given data
+// @Tags         tasks
+// @Accept       json
+// @Produce      json
+// @Param        id    path      uint64                 true  "Task ID"
+// @Param        task  body      pb.UpdateTaskRequest   true  "Updated task input"
+// @Success      200   {object}  map[string]interface{}
+// @Failure      400   {object}  map[string]string
+// @Failure      500   {object}  map[string]string
+// @Security     BearerAuth
+// @Router       /tasks/{id} [put]
 func (tc *TaskController) TasksUpdate(c *gin.Context) {
 	var req pb.UpdateTaskRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -117,6 +166,17 @@ func (tc *TaskController) TasksUpdate(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": resp})
 }
 
+// Delete Task
+// @Summary      Delete a task
+// @Description  Deletes a task by ID
+// @Tags         tasks
+// @Produce      json
+// @Param        id   path      uint64  true  "Task ID"
+// @Success      204  "No Content"
+// @Failure      400  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Security     BearerAuth
+// @Router       /tasks/{id} [delete]
 func (tc *TaskController) TasksDelete(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 64)
