@@ -10,15 +10,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/swaggo/files"
 	"github.com/swaggo/gin-swagger"
-	"log"
 	"net/http"
 	"os"
-	"strings"
-	"time"
 )
 
 func init() {
-	initializers.LoadEnvVariables()
+	initializers.LoadCorsConfig()
 	initializers.InitProducer()
 	initializers.InitConsumer()
 }
@@ -45,31 +42,10 @@ func main() {
 	notifyTopic := os.Getenv("KAFKA_NOTIFY_TOPIC")
 	go consumers.ConsumeMessages(notifyTopic)
 
-	grpcClient := initializers.InitTaskStorageService()
-	taskController := controllers.NewTaskController(grpcClient)
-	authHost := os.Getenv("AUTH_SERVICE_URL")
-	authController := controllers.NewAuthController(authHost)
 	r := gin.Default()
 	r.Use(middleware.LoggerMiddleware())
 
-	allowOrigins := strings.Split(os.Getenv("CORS_ALLOW_ORIGINS"), ",")
-	allowMethods := strings.Split(os.Getenv("CORS_ALLOW_METHODS"), ",")
-	allowHeaders := strings.Split(os.Getenv("CORS_ALLOW_HEADERS"), ",")
-	allowCredentials := os.Getenv("CORS_ALLOW_CREDENTIALS") == "true"
-	maxAge := os.Getenv("CORS_MAX_AGE")
-
-	maxAgeDuration, err := time.ParseDuration(maxAge + "s")
-	if err != nil {
-		log.Fatalf("Invalid CORS_MAX_AGE value: %v", err)
-	}
-
-	r.Use(cors.New(cors.Config{
-		AllowOrigins:     allowOrigins,
-		AllowMethods:     allowMethods,
-		AllowHeaders:     allowHeaders,
-		AllowCredentials: allowCredentials,
-		MaxAge:           maxAgeDuration,
-	}))
+	r.Use(cors.New(initializers.LoadCorsConfig()))
 
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
@@ -78,6 +54,9 @@ func main() {
 			"message": "API is working",
 		})
 	})
+
+	grpcClient := initializers.InitTaskStorageService()
+	taskController := controllers.NewTaskController(grpcClient)
 
 	tasksGroup := r.Group("/tasks", middleware.RequireAuth)
 	{
@@ -89,6 +68,9 @@ func main() {
 	}
 	r.GET("/tasks/notifications", consumers.HandleWebSocketConnection)
 
+	authHost := os.Getenv("AUTH_SERVICE_URL")
+	authController := controllers.NewAuthController(authHost)
+
 	authGroup := r.Group("/auth")
 	{
 		authGroup.POST("/login", authController.Login)
@@ -98,6 +80,9 @@ func main() {
 		authGroup.GET("/user", authController.User)
 		authGroup.POST("/logout", authController.Logout)
 	}
-
-	r.Run()
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	r.Run(":" + port)
 }

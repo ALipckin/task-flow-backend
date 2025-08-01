@@ -2,6 +2,7 @@ package initializers
 
 import (
 	"TaskRestApiService/consumers"
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -12,13 +13,9 @@ import (
 var KafkaProducer sarama.SyncProducer
 
 func InitProducer() {
-	config := sarama.NewConfig()
-	config.Producer.Return.Successes = true // Wait for confirmation of successful sending
-	config.Producer.Timeout = 5 * time.Second
-	kafkaHost := os.Getenv("KAFKA_HOST")
-	brokers := []string{kafkaHost}
+	config := newProducerConfig()
+	brokers := getKafkaBrokers()
 
-	// Create a Kafka producer
 	producer, err := sarama.NewSyncProducer(brokers, config)
 	if err != nil {
 		log.Fatalf("Error creating Kafka producer: %v", err)
@@ -28,30 +25,9 @@ func InitProducer() {
 	log.Println("Kafka producer initialized successfully")
 }
 
-// SendMessage sends a message to Kafka
-func SendMessage(topic, message string) error {
-	msg := &sarama.ProducerMessage{
-		Topic: topic,
-		Value: sarama.StringEncoder(message),
-	}
-
-	_, _, err := KafkaProducer.SendMessage(msg)
-	if err != nil {
-		log.Printf("Error sending message to Kafka: %v", err)
-		return err
-	}
-
-	log.Printf("Message successfully sent to Kafka: %s", message)
-	return nil
-}
-
 func InitConsumer() {
-	config := sarama.NewConfig()
-	config.Consumer.Return.Errors = true                  // Enable error handling for consumers
-	config.Consumer.Offsets.Initial = sarama.OffsetNewest // Start from the newest message
-
-	kafkaHost := os.Getenv("KAFKA_HOST")
-	brokers := []string{kafkaHost}
+	config := newConsumerConfig()
+	brokers := getKafkaBrokers()
 
 	consumer, err := sarama.NewConsumer(brokers, config)
 	if err != nil {
@@ -60,4 +36,27 @@ func InitConsumer() {
 
 	consumers.KafkaConsumer = consumer
 	log.Println("Kafka consumer initialized successfully")
+}
+
+func getKafkaBrokers() []string {
+	host := os.Getenv("KAFKA_HOST")
+	port := os.Getenv("KAFKA_PORT")
+	if host == "" || port == "" {
+		log.Fatal("KAFKA_HOST and KAFKA_PORT must be set")
+	}
+	return []string{fmt.Sprintf("%s:%s", host, port)}
+}
+
+func newProducerConfig() *sarama.Config {
+	config := sarama.NewConfig()
+	config.Producer.Return.Successes = true
+	config.Producer.Timeout = 5 * time.Second
+	return config
+}
+
+func newConsumerConfig() *sarama.Config {
+	config := sarama.NewConfig()
+	config.Consumer.Return.Errors = true
+	config.Consumer.Offsets.Initial = sarama.OffsetNewest
+	return config
 }
