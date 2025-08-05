@@ -1,10 +1,16 @@
 # Rest Api service
 
 Installation:
+- install docker 
+- run install_service.sh
 
-create .env from .evn-example
+to generate swagger doc run:
 
-``docker compose up -d --build``
+`go install github.com/swaggo/swag/cmd/swag@latest`
+
+`swag init`
+
+swagger will be available at /swagger/index.html
 
 Логи доступны через elasticSearch по индексу service-logs* 
 Можно смотреть логи в kebana через discover - FROM service-logs*

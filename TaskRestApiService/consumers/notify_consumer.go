@@ -36,6 +36,14 @@ type EventDataMessage struct {
 	UserID      int    `json:"user_id"`
 }
 
+// WebSocket Notifications
+// @Summary      WebSocket connection for task notifications
+// @Description  Opens a WebSocket connection to receive real-time task notifications
+// @Tags         notifications
+// @Produce      json
+// @Success      101  "Switching Protocols"
+// @Router       /tasks/notifications [get]
+// @Security     BearerAuth
 func HandleWebSocketConnection(c *gin.Context) {
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {

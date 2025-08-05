@@ -12,19 +12,21 @@ services:
       - FLUENTD_CONF=fluent.conf
     networks:
       - task-network
-  task-rest-api-service:
+  task-flow-api:
     build: ./docker/
-    container_name: task-rest-api-service
+    container_name: ${COMPOSE_PROJECT_NAME}-backend-dev
     volumes:
       - .:/usr/local/bin/
     ports:
-      - "5437:8999" # api port
-      - "2345:2345" # debugger port
+      - "${PORT}:${PORT}" # api port
+      - "${PORT_DEBUG}:2345" # debugger port
     networks:
       - task-network
     command: [
       ./docker/debug.sh
     ]
+    env_file:
+      - .env
     depends_on:
       kafka:
         condition: service_healthy
@@ -37,7 +39,7 @@ services:
         tag: docker.task-rest-api-service
     restart: always
   zookeeper:
-    image: confluentinc/cp-zookeeper:latest
+    image: confluentinc/cp-zookeeper:7.5.3
     container_name: zookeeper
     restart: always
     environment:
@@ -45,16 +47,17 @@ services:
     networks:
       - task-network
   kafka:
-    image: confluentinc/cp-kafka:latest
-    container_name: kafka
+    image: confluentinc/cp-kafka:7.5.3
+    container_name: ${KAFKA_HOST}
     restart: always
     ports:
-      - "9092:9092"
+      - "${KAFKA_PORT}:${KAFKA_PORT}"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://${KAFKA_HOST}:${KAFKA_PORT}
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_ENABLE_KRAFT: "false"
     networks:
       - task-network
     depends_on:
@@ -82,7 +85,6 @@ services:
       - "9200:9200"
     networks:
         - task-network
-  # Kibana для визуализации логов
   kibana:
     image: kibana:7.17.17
     container_name: kibana
