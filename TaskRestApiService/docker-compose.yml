@@ -22,9 +22,7 @@ services:
       - "${PORT_DEBUG}:2345" # debugger port
     networks:
       - task-network
-    command: [
-      ./docker/debug.sh
-    ]
+    command: ["sh", "-c", "swag init && ./docker/debug.sh"]
     env_file:
       - .env
     depends_on:

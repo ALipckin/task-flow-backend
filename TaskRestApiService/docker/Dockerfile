@@ -6,5 +6,6 @@ WORKDIR /usr/local/bin/
 
 RUN go install github.com/githubnemo/CompileDaemon@latest
 RUN go install github.com/go-delve/delve/cmd/dlv@latest
+RUN go install github.com/swaggo/swag/cmd/swag@latest
 
 WORKDIR /usr/local/bin
