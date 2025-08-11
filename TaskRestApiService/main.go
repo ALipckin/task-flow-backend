@@ -15,7 +15,6 @@ import (
 )
 
 func init() {
-	initializers.LoadCorsConfig()
 	initializers.InitProducer()
 	initializers.InitConsumer()
 }
@@ -81,8 +80,5 @@ func main() {
 		authGroup.POST("/logout", authController.Logout)
 	}
 	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
 	r.Run(":" + port)
 }
