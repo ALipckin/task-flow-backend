@@ -43,6 +43,7 @@ func main() {
 
 	r := gin.Default()
 	r.Use(middleware.LoggerMiddleware())
+	r.Use(middleware.RateLimiterWithConfig(10, 20))
 
 	r.Use(cors.New(initializers.LoadCorsConfig()))
 
