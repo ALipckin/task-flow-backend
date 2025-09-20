@@ -24,11 +24,12 @@ services:
 
   task-storage-service:
     build: ./docker
-    logging:
-      driver: fluentd
-      options:
-        fluentd-address: localhost:24224
-        tag: docker.task-storage-service
+    # Временно отключено Fluentd логирование из-за проблем с подключением
+    # logging:
+    #   driver: fluentd
+    #   options:
+    #     fluentd-address: localhost:24224
+    #     tag: docker.task-storage-service
     container_name: task-storage-service
     volumes:
       - .:/usr/local/bin/
