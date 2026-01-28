@@ -4,9 +4,10 @@ import (
 	"TaskStorageService/initializers"
 	"TaskStorageService/models"
 	"encoding/json"
+	"gorm.io/gorm"
 )
 
-func SendTaskEventToKafka(event string, task models.Task) error {
+func SendTaskEventToKafka(event string, task models.Task, shard *gorm.DB) error {
 	message := map[string]interface{}{
 		"event":         event,
 		"task_id":       task.ID,
@@ -14,7 +15,7 @@ func SendTaskEventToKafka(event string, task models.Task) error {
 		"description":   task.Description,
 		"performer_id":  task.PerformerId,
 		"creator_id":    task.CreatorId,
-		"observers_ids": task.ObserverIDs(),
+		"observers_ids": task.ObserverIDs(shard),
 		"status":        task.Status,
 		"created_at":    task.CreatedAt,
 		"updated_at":    task.UpdatedAt,

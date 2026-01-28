@@ -12,7 +12,7 @@ import (
 
 type TaskServer struct {
 	taskpb.UnimplementedTaskServiceServer
-	DB *gorm.DB
+	ShardManager *models.ShardManager
 }
 
 func (s *TaskServer) CreateTask(ctx context.Context, req *taskpb.CreateTaskRequest) (*taskpb.TaskResponse, error) {
@@ -21,29 +21,49 @@ func (s *TaskServer) CreateTask(ctx context.Context, req *taskpb.CreateTaskReque
 		return nil, err
 	}
 
-	if err := s.DB.Create(&task).Error; err != nil {
+	allShards := s.ShardManager.GetAllShards()
+	if len(allShards) == 0 {
+		return nil, gorm.ErrRecordNotFound
+	}
+
+	initialShard := allShards[0]
+	if err := initialShard.Create(&task).Error; err != nil {
 		return nil, err
+	}
+
+	shard := s.ShardManager.GetShard(task.ID)
+	if shard != initialShard {
+		if err := shard.Create(&task).Error; err != nil {
+			initialShard.Delete(&task)
+			return nil, err
+		}
+		if err := initialShard.Delete(&task).Error; err != nil {
+			return nil, err
+		}
 	}
 
 	if err := helpers.CacheSetTask(ctx, task); err != nil {
 		return nil, err
 	}
 
-	if err := helpers.SendTaskEventToKafka("TaskCreated", task); err != nil {
+	if err := helpers.SendTaskEventToKafka("TaskCreated", task, shard); err != nil {
 		return nil, err
 	}
 
-	return &taskpb.TaskResponse{Task: convertToProto(task)}, nil
+	return &taskpb.TaskResponse{Task: convertToProto(task, shard)}, nil
 }
 
 func (s *TaskServer) GetTask(ctx context.Context, req *taskpb.GetTaskRequest) (*taskpb.TaskResponse, error) {
-	task, err := helpers.CacheGetTask(ctx, uint(req.Id))
+	taskID := uint(req.Id)
+	task, err := helpers.CacheGetTask(ctx, taskID)
 	if err == nil {
-		return &taskpb.TaskResponse{Task: convertToProto(*task)}, nil
+		shard := s.ShardManager.GetShard(taskID)
+		return &taskpb.TaskResponse{Task: convertToProto(*task, shard)}, nil
 	}
 
+	shard := s.ShardManager.GetShard(taskID)
 	task = &models.Task{}
-	if err := s.DB.First(task, req.Id).Error; err != nil {
+	if err := shard.First(task, req.Id).Error; err != nil {
 		return nil, err
 	}
 
@@ -51,43 +71,53 @@ func (s *TaskServer) GetTask(ctx context.Context, req *taskpb.GetTaskRequest) (*
 		return nil, err
 	}
 
-	return &taskpb.TaskResponse{Task: convertToProto(*task)}, nil
+	return &taskpb.TaskResponse{Task: convertToProto(*task, shard)}, nil
 }
 
 func (s *TaskServer) GetTasks(ctx context.Context, req *taskpb.GetTasksRequest) (*taskpb.GetTasksResponse, error) {
-	var tasks []models.Task
-	query := s.DB
+	allShards := s.ShardManager.GetAllShards()
+	allTasks := make([]models.Task, 0)
 
-	if req.Title != "" {
-		query = query.Where("title = ?", req.Title)
-	}
-	if req.CreatorId != 0 {
-		query = query.Where("creator_id = ?", req.CreatorId)
-	}
-	if req.PerformerId != 0 {
-		query = query.Where("performer_id = ?", req.PerformerId)
+	for _, shard := range allShards {
+		var tasks []models.Task
+		query := shard
+
+		if req.Title != "" {
+			query = query.Where("title = ?", req.Title)
+		}
+		if req.CreatorId != 0 {
+			query = query.Where("creator_id = ?", req.CreatorId)
+		}
+		if req.PerformerId != 0 {
+			query = query.Where("performer_id = ?", req.PerformerId)
+		}
+
+		if err := query.Find(&tasks).Error; err != nil {
+			continue
+		}
+
+		allTasks = append(allTasks, tasks...)
 	}
 
-	if err := query.Find(&tasks).Error; err != nil {
-		return nil, err
-	}
-
-	protoTasks := make([]*taskpb.Task, 0, len(tasks))
-	for _, t := range tasks {
-		protoTasks = append(protoTasks, convertToProto(t))
+	protoTasks := make([]*taskpb.Task, 0, len(allTasks))
+	for _, t := range allTasks {
+		shard := s.ShardManager.GetShard(t.ID)
+		protoTasks = append(protoTasks, convertToProto(t, shard))
 	}
 
 	return &taskpb.GetTasksResponse{Tasks: protoTasks}, nil
 }
 
 func (s *TaskServer) UpdateTask(ctx context.Context, req *taskpb.UpdateTaskRequest) (*taskpb.TaskResponse, error) {
+	taskID := uint(req.Id)
+	shard := s.ShardManager.GetShard(taskID)
+
 	var task models.Task
-	if err := s.DB.First(&task, req.Id).Error; err != nil {
+	if err := shard.First(&task, req.Id).Error; err != nil {
 		return nil, err
 	}
 
-	// Очистим старых наблюдателей
-	if err := s.DB.Where("task_id = ?", task.ID).Delete(&models.Observer{}).Error; err != nil {
+	if err := shard.Where("task_id = ?", task.ID).Delete(&models.Observer{}).Error; err != nil {
 		return nil, err
 	}
 
@@ -95,39 +125,42 @@ func (s *TaskServer) UpdateTask(ctx context.Context, req *taskpb.UpdateTaskReque
 		return nil, err
 	}
 
-	if err := s.DB.Save(&task).Error; err != nil {
+	if err := shard.Save(&task).Error; err != nil {
 		return nil, err
 	}
 
 	initializers.RedisClient.Del(ctx, helpers.CacheKey(task.ID))
 
-	if err := helpers.SendTaskEventToKafka("TaskUpdated", task); err != nil {
+	if err := helpers.SendTaskEventToKafka("TaskUpdated", task, shard); err != nil {
 		return nil, err
 	}
 
-	return &taskpb.TaskResponse{Task: convertToProto(task)}, nil
+	return &taskpb.TaskResponse{Task: convertToProto(task, shard)}, nil
 }
 
 func (s *TaskServer) DeleteTask(ctx context.Context, req *taskpb.DeleteTaskRequest) (*taskpb.DeleteTaskResponse, error) {
+	taskID := uint(req.Id)
+	shard := s.ShardManager.GetShard(taskID)
+
 	var task models.Task
-	if err := s.DB.First(&task, req.Id).Error; err != nil {
+	if err := shard.First(&task, req.Id).Error; err != nil {
 		return nil, err
 	}
 
-	if err := s.DB.Delete(&task).Error; err != nil {
+	if err := shard.Delete(&task).Error; err != nil {
 		return nil, err
 	}
 
 	initializers.RedisClient.Del(ctx, helpers.CacheKey(task.ID))
 
-	if err := helpers.SendTaskEventToKafka("TaskDeleted", task); err != nil {
+	if err := helpers.SendTaskEventToKafka("TaskDeleted", task, shard); err != nil {
 		return nil, err
 	}
 
 	return &taskpb.DeleteTaskResponse{Message: "Task deleted"}, nil
 }
 
-func convertToProto(task models.Task) *taskpb.Task {
+func convertToProto(task models.Task, shard *gorm.DB) *taskpb.Task {
 	return &taskpb.Task{
 		Id:          uint64(task.ID),
 		Title:       task.Title,
@@ -135,7 +168,7 @@ func convertToProto(task models.Task) *taskpb.Task {
 		Status:      task.Status,
 		PerformerId: uint64(task.PerformerId),
 		CreatorId:   uint64(task.CreatorId),
-		ObserverIds: task.ObserverIDs(),
+		ObserverIds: task.ObserverIDs(shard),
 		CreatedAt:   timestamppb.New(task.CreatedAt),
 		UpdatedAt:   timestamppb.New(task.UpdatedAt),
 	}

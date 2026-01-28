@@ -1,19 +1,63 @@
 version: '3.8'
 
 services:
-  db:
+  db-shard-1:
     image: postgres:14
-    container_name: postgres-db
+    container_name: postgres-shard-1
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: mydb
+      POSTGRES_DB: tasks_db
     ports:
       - "5432:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - postgres-shard-1-data:/var/lib/postgresql/data
     networks:
       - task-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d tasks_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  db-shard-2:
+    image: postgres:14
+    container_name: postgres-shard-2
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: tasks_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-shard-2-data:/var/lib/postgresql/data
+    networks:
+      - task-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d tasks_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  db-shard-3:
+    image: postgres:14
+    container_name: postgres-shard-3
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: tasks_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres-shard-3-data:/var/lib/postgresql/data
+    networks:
+      - task-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d tasks_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   redis:
     image: redis:alpine
     container_name: redis
@@ -24,25 +68,32 @@ services:
 
   task-storage-service:
     build: ./docker
-    # Временно отключено Fluentd логирование из-за проблем с подключением
-    # logging:
-    #   driver: fluentd
-    #   options:
-    #     fluentd-address: localhost:24224
-    #     tag: docker.task-storage-service
     container_name: task-storage-service
     volumes:
       - .:/usr/local/bin/
     ports:
       - "5436:50051"
     depends_on:
-      - db
+      db-shard-1:
+        condition: service_healthy
+      db-shard-2:
+        condition: service_healthy
+      db-shard-3:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      GRPC_PORT: ${GRPC_PORT}
+      DB_SHARD_URLS: ${DB_SHARD_URLS}
+      REDIS_URL: ${REDIS_URL}
     networks:
       - task-network
     command: [ "CompileDaemon", "-command=go run main.go" ]
 
 volumes:
-  postgres-data:
+  postgres-shard-1-data:
+  postgres-shard-2-data:
+  postgres-shard-3-data:
 
 networks:
   task-network:

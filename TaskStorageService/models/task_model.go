@@ -19,9 +19,8 @@ type Task struct {
 	DeletedAt   gorm.DeletedAt `gorm:"index"`
 }
 
-func (t *Task) ObserverIDs() []uint64 {
-	// Загрузка связанных наблюдателей
-	if err := DB.Preload("Observers").First(t, t.ID).Error; err != nil {
+func (t *Task) ObserverIDs(shard *gorm.DB) []uint64 {
+	if err := shard.Preload("Observers").First(t, t.ID).Error; err != nil {
 		log.Println("Error loading task with observers:", err)
 		return nil
 	}

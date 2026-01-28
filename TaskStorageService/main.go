@@ -8,28 +8,29 @@ import (
 	"TaskStorageService/proto/server"
 	"TaskStorageService/proto/taskpb"
 	"fmt"
-	"google.golang.org/grpc"
 	"log"
 	"net"
 	"os"
+
+	"google.golang.org/grpc"
 )
 
 func init() {
 	initializers.LoadEnvVariables()
-	models.ConnectToDB()
+	models.InitShardManager()
 	initializers.ConnectRedis()
 	initializers.InitProducer()
 	logger.Init()
 }
 
 func main() {
-	initializers.SyncDatabase(models.DB)
+	initializers.SyncDatabaseForShards()
 	grpcServer := grpc.NewServer(
 		grpc.UnaryInterceptor(middleware.UnaryLoggingInterceptor()),
 	)
 
 	taskServer := &server.TaskServer{
-		DB: models.DB,
+		ShardManager: models.ShardMgr,
 	}
 
 	taskpb.RegisterTaskServiceServer(grpcServer, taskServer)
