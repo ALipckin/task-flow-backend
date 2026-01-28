@@ -6,6 +6,7 @@ import (
 	"TaskStorageService/models"
 	"TaskStorageService/proto/taskpb"
 	"context"
+
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gorm.io/gorm"
 )
@@ -21,25 +22,16 @@ func (s *TaskServer) CreateTask(ctx context.Context, req *taskpb.CreateTaskReque
 		return nil, err
 	}
 
-	allShards := s.ShardManager.GetAllShards()
-	if len(allShards) == 0 {
-		return nil, gorm.ErrRecordNotFound
-	}
-
-	initialShard := allShards[0]
-	if err := initialShard.Create(&task).Error; err != nil {
+	shardIndex := s.ShardManager.NextShardIndex()
+	id, err := s.ShardManager.AllocNextID(shardIndex)
+	if err != nil {
 		return nil, err
 	}
 
-	shard := s.ShardManager.GetShard(task.ID)
-	if shard != initialShard {
-		if err := shard.Create(&task).Error; err != nil {
-			initialShard.Delete(&task)
-			return nil, err
-		}
-		if err := initialShard.Delete(&task).Error; err != nil {
-			return nil, err
-		}
+	task.ID = id
+	shard := s.ShardManager.GetShardByIndex(shardIndex)
+	if err := shard.Create(&task).Error; err != nil {
+		return nil, err
 	}
 
 	if err := helpers.CacheSetTask(ctx, task); err != nil {

@@ -11,11 +11,16 @@ func SyncDatabaseForShards() {
 	}
 
 	allShards := models.ShardMgr.GetAllShards()
+	rangeSize := models.ShardMgr.RangeSize()
+
 	for i, shard := range allShards {
-		err := shard.AutoMigrate(&models.Task{}, &models.Observer{})
+		err := shard.AutoMigrate(&models.Task{}, &models.Observer{}, &models.IdAllocator{})
 		if err != nil {
 			log.Printf("Error migrating shard %d: %v", i, err)
 			continue
+		}
+		if err := models.SeedIdAllocator(shard, i, rangeSize); err != nil {
+			log.Printf("Error seeding id_allocator on shard %d: %v", i, err)
 		}
 		log.Printf("Successful shard migration %d", i)
 	}
