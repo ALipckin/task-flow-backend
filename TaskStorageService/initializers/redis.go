@@ -3,9 +3,10 @@ package initializers
 import (
 	"context"
 	"fmt"
-	"github.com/redis/go-redis/v9"
 	"log"
 	"os"
+
+	"github.com/redis/go-redis/v9"
 )
 
 var RedisClient *redis.Client
@@ -13,13 +14,13 @@ var RedisClient *redis.Client
 func ConnectRedis() {
 	RedisClient = GetClient()
 
-	// Проверяем соединение
+	// Verify connection
 	_, err := RedisClient.Ping(context.Background()).Result()
 	if err != nil {
-		log.Println(fmt.Sprintf("Ошибка подключения к Redis: %v", err))
+		log.Println(fmt.Sprintf("Redis connection error: %v", err))
 		panic(err)
 	}
-	log.Println("✅ Подключено к Redis!")
+	log.Println("Redis connected")
 }
 
 func GetClient() *redis.Client {

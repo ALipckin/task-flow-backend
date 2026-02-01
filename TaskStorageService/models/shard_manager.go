@@ -1,6 +1,7 @@
 package models
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -12,15 +13,14 @@ import (
 	"gorm.io/gorm"
 )
 
-// ID range size per shard (default is 1M).
-// Shard 0: 1..rangeSize, shard 1: rangeSize+1..2*rangeSize, etc.
-const defaultRangeSize uint64 = 1_000_000
+// Number of virtual nodes per physical shard (100–1000 for even distribution).
+const defaultVnodesPerShard = 256
 
 type ShardManager struct {
-	shards    []*gorm.DB
-	rangeSize uint64
-	mu        sync.RWMutex
-	// round-robin when creating a task
+	shards []*gorm.DB
+	ring   *consistentRing
+	mu     sync.RWMutex
+	// round-robin when performer_id == 0 (fallback)
 	nextShardIndex uint32
 }
 
@@ -54,38 +54,53 @@ func InitShardManager() {
 		log.Fatal("No shards configured")
 	}
 
-	var rangeSize uint64 = defaultRangeSize
-	if s := os.Getenv("RANGE_SIZE"); s != "" {
-		if n, err := strconv.ParseUint(s, 10, 64); err == nil && n > 0 {
-			rangeSize = n
+	vnodes := defaultVnodesPerShard
+	if s := os.Getenv("VNODES_PER_SHARD"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n > 0 {
+			vnodes = n
 		}
 	}
 
+	ring := newConsistentRing(len(shards), vnodes)
+
 	ShardMgr = &ShardManager{
-		shards:    shards,
-		rangeSize: rangeSize,
+		shards: shards,
+		ring:   ring,
 	}
-	log.Printf("ShardManager initialized with %d shards, range size %d", len(shards), rangeSize)
+	log.Printf("ShardManager initialized with %d shards, %d vnodes/shard (consistent ring)", len(shards), vnodes)
 }
 
-// GetShard returns a shard by task ID (range allocation).
-// Shard i stores IDs in the range [i*rangeSize+1, (i+1)*rangeSize].
-func (sm *ShardManager) GetShard(taskID uint) *gorm.DB {
+// GetShardByPerformerID returns the shard for performer_id (ring key: performer:{id}).
+// When performerID == 0, uses round-robin.
+func (sm *ShardManager) GetShardByPerformerID(performerID uint) *gorm.DB {
+	idx := sm.GetShardByPerformerIDIndex(performerID)
+	return sm.GetShardByIndex(idx)
+}
+
+// GetShardByPerformerIDIndex returns the shard index for performer_id (first shard clockwise on the ring).
+// When performerID == 0, uses round-robin.
+func (sm *ShardManager) GetShardByPerformerIDIndex(performerID uint) int {
 	sm.mu.RLock()
-	defer sm.mu.RUnlock()
-
-	if len(sm.shards) == 0 || taskID == 0 {
-		return nil
+	n := len(sm.shards)
+	sm.mu.RUnlock()
+	if n == 0 {
+		return 0
 	}
-
-	idx := (uint64(taskID) - 1) / sm.rangeSize
-	if idx >= uint64(len(sm.shards)) {
-		return nil
+	if performerID == 0 {
+		i := atomic.AddUint32(&sm.nextShardIndex, 1)
+		return int(i-1) % n
 	}
-	return sm.shards[idx]
+	key := []byte(fmt.Sprintf("performer:%d", performerID))
+	sm.mu.RLock()
+	idx := sm.ring.GetShard(key)
+	sm.mu.RUnlock()
+	if idx < 0 || idx >= n {
+		return 0
+	}
+	return idx
 }
 
-// GetShardByIndex returns a shard by index (0-based).
+// GetShardByIndex returns the shard by index (0-based).
 func (sm *ShardManager) GetShardByIndex(index int) *gorm.DB {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
@@ -95,36 +110,9 @@ func (sm *ShardManager) GetShardByIndex(index int) *gorm.DB {
 	return sm.shards[index]
 }
 
-// NextShardIndex returns the shard index for a new task (round-robin).
-func (sm *ShardManager) NextShardIndex() int {
-	n := sm.GetShardCount()
-	if n == 0 {
-		return 0
-	}
-	i := atomic.AddUint32(&sm.nextShardIndex, 1)
-	return int(i-1) % n
-}
-
-// AllocNextID allocates the next ID on the shard with index shardIndex and returns it.
-func (sm *ShardManager) AllocNextID(shardIndex int) (uint, error) {
-	shard := sm.GetShardByIndex(shardIndex)
-	if shard == nil {
-		return 0, gorm.ErrRecordNotFound
-	}
-	return AllocNextID(shard)
-}
-
-// RangeSize returns the size of the ID range per shard.
-func (sm *ShardManager) RangeSize() uint64 {
-	sm.mu.RLock()
-	defer sm.mu.RUnlock()
-	return sm.rangeSize
-}
-
 func (sm *ShardManager) GetAllShards() []*gorm.DB {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
-
 	shards := make([]*gorm.DB, len(sm.shards))
 	copy(shards, sm.shards)
 	return shards
@@ -136,9 +124,26 @@ func (sm *ShardManager) GetShardCount() int {
 	return len(sm.shards)
 }
 
+// RebuildRing rebuilds the ring with the current number of shards (after adding a shard).
+// On restart with new DB_SHARD_URLS, InitShardManager already builds a new ring.
+func (sm *ShardManager) RebuildRing() {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	n := len(sm.shards)
+	vnodes := defaultVnodesPerShard
+	if s := os.Getenv("VNODES_PER_SHARD"); s != "" {
+		if v, err := strconv.Atoi(s); err == nil && v > 0 {
+			vnodes = v
+		}
+	}
+	sm.ring.Rebuild(n, vnodes)
+	log.Printf("Ring rebuilt with %d shards, %d vnodes/shard", n, vnodes)
+}
+
 func NewShardManagerForTesting(shards []*gorm.DB) *ShardManager {
+	ring := newConsistentRing(len(shards), defaultVnodesPerShard)
 	return &ShardManager{
-		shards:    shards,
-		rangeSize: defaultRangeSize,
+		shards: shards,
+		ring:   ring,
 	}
 }

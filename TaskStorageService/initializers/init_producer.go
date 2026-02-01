@@ -1,9 +1,10 @@
 package initializers
 
 import (
-	"github.com/IBM/sarama"
 	"log"
 	"time"
+
+	"github.com/IBM/sarama"
 )
 
 var KafkaProducer sarama.SyncProducer
@@ -46,13 +47,13 @@ func SendMessage(topic, message string) error {
 
 func SendMessageToKafka(message []byte) error {
 	topic := "task_events"
-	// Формируем Kafka сообщение
+	// Build Kafka message
 	msg := &sarama.ProducerMessage{
 		Topic: topic,
 		Value: sarama.StringEncoder(message),
 	}
 
-	// Отправляем сообщение в Kafka
+	// Send message to Kafka
 	var err error
 	_, _, err = KafkaProducer.SendMessage(msg)
 	if err != nil {

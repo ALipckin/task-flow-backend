@@ -42,6 +42,6 @@ func main() {
 
 	fmt.Println("gRPC-server start, port: ", port)
 	if err := grpcServer.Serve(listener); err != nil {
-		log.Fatalf("Ошибка запуска gRPC: %v", err)
+		log.Fatalf("gRPC server failed: %v", err)
 	}
 }

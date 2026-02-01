@@ -1,10 +1,11 @@
 package models
 
 import (
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 	"log"
 	"os"
+
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 var DB *gorm.DB
@@ -19,5 +20,5 @@ func ConnectToDB() {
 	if err != nil {
 		log.Fatal("Failed to connect to database")
 	}
-	log.Println("✅ Успешное подключение к базе данных")
+	log.Println("Database connected")
 }
