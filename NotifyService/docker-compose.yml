@@ -1,6 +1,22 @@
 version: '3.8'
 
 services:
+  mailhog:
+    image: mailhog/mailhog
+    container_name: mailhog
+    restart: unless-stopped
+    ports:
+      - "8050:8025"
+      - "1050:1025"
+    networks:
+      - task-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8025"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
   notify-service:
     build: ./
     container_name: notify-service
@@ -8,22 +24,12 @@ services:
       - .:/usr/local/bin/
     networks:
       - task-network
+    depends_on:
+      mailhog:
+        condition: service_healthy
+    restart: unless-stopped
     command: [ "CompileDaemon", "-command=go run main.go" ]
-    # Временно отключено Fluentd логирование из-за проблем с подключением
-    # logging:
-    #   driver: fluentd
-    #   options:
-    #     fluentd-address: localhost:24224
-    #     tag: docker.notify-service
-  mailhog:
-    image: mailhog/mailhog
-    container_name: mailhog
-    restart: always
-    ports:
-      - "8050:8025"
-      - "1050:1025"
-    networks:
-      - task-network
+
 networks:
   task-network:
     external: true

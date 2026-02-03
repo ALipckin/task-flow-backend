@@ -3,6 +3,11 @@ package main
 import (
 	"NotifyService/consumers"
 	"NotifyService/initializers"
+	"context"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
 )
 
 func init() {
@@ -10,8 +15,34 @@ func init() {
 }
 
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	defer initializers.Reader.Close()
+	defer func() {
+		if initializers.Reader != nil {
+			log.Println("Closing Kafka reader...")
+			if err := initializers.Reader.Close(); err != nil {
+				log.Printf("Error closing Kafka reader: %v", err)
+			}
+		}
+		if initializers.Writer != nil {
+			log.Println("Closing Kafka writer...")
+			if err := initializers.Writer.Close(); err != nil {
+				log.Printf("Error closing Kafka writer: %v", err)
+			}
+		}
+	}()
 
-	consumers.StartKafkaConsumer()
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
+
+	go func() {
+		consumers.StartKafkaConsumer(ctx)
+	}()
+
+	sig := <-sigChan
+	log.Printf("Received signal: %v, initiating graceful shutdown...", sig)
+	cancel()
+
+	log.Println("NotifyService shutdown complete")
 }

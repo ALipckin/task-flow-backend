@@ -6,12 +6,18 @@ import (
 	_ "TaskRestApiService/docs"
 	"TaskRestApiService/initializers"
 	"TaskRestApiService/middleware"
-	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin"
-	"github.com/swaggo/files"
-	"github.com/swaggo/gin-swagger"
+	"context"
+	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 func init() {
@@ -34,7 +40,15 @@ func init() {
 // @description Type "Bearer" followed by a space and JWT token. Example: "Bearer {token}"
 
 func main() {
-	defer initializers.KafkaProducer.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	defer func() {
+		if initializers.KafkaProducer != nil {
+			initializers.KafkaProducer.Close()
+		}
+	}()
+
 	mode := os.Getenv("GIN_MODE")
 	gin.SetMode(mode)
 
@@ -80,6 +94,49 @@ func main() {
 		authGroup.GET("/user", authController.User)
 		authGroup.POST("/logout", authController.Logout)
 	}
+
 	port := os.Getenv("PORT")
-	r.Run(":" + port)
+	server := &http.Server{
+		Addr:         ":" + port,
+		Handler:      r,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
+
+	go func() {
+		log.Printf("Server starting on port %s", port)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server error: %v", err)
+		}
+	}()
+
+	sig := <-sigChan
+	log.Printf("Received signal: %v, initiating graceful shutdown...", sig)
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer shutdownCancel()
+
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Printf("Server forced to shutdown: %v", err)
+	}
+
+	if initializers.KafkaProducer != nil {
+		log.Println("Closing Kafka producer...")
+		if err := initializers.KafkaProducer.Close(); err != nil {
+			log.Printf("Error closing Kafka producer: %v", err)
+		}
+	}
+
+	if consumers.KafkaConsumer != nil {
+		log.Println("Closing Kafka consumer...")
+		if err := consumers.KafkaConsumer.Close(); err != nil {
+			log.Printf("Error closing Kafka consumer: %v", err)
+		}
+	}
+
+	log.Println("TaskRestApiService shutdown complete")
 }

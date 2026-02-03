@@ -5,9 +5,16 @@ import (
 	"AuthService/controllers"
 	"AuthService/initializers"
 	"AuthService/middleware"
+	"context"
 	"fmt"
-	"gorm.io/gorm"
+	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"gorm.io/gorm"
 )
 
 var DB *gorm.DB
@@ -44,6 +51,41 @@ func main() {
 	mux.Handle("/user", authMiddleware(http.HandlerFunc(userController.GetUser)))
 	mux.Handle("/users", authMiddleware(http.HandlerFunc(userController.GetUsers)))
 
-	fmt.Println("Server started on :8081")
-	http.ListenAndServe(":8081", middleware.LoggerMiddleware(mux))
+	server := &http.Server{
+		Addr:         ":8081",
+		Handler:      middleware.LoggerMiddleware(mux),
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
+
+	go func() {
+		fmt.Println("Server started on :8081")
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server error: %v", err)
+		}
+	}()
+
+	sig := <-sigChan
+	log.Printf("Received signal: %v, initiating graceful shutdown...", sig)
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Printf("Server forced to shutdown: %v", err)
+	}
+
+	sqlDB, err := DB.DB()
+	if err == nil {
+		log.Println("Closing database connection...")
+		if err := sqlDB.Close(); err != nil {
+			log.Printf("Error closing database: %v", err)
+		}
+	}
+
+	log.Println("AuthService shutdown complete")
 }

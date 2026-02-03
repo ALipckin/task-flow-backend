@@ -70,4 +70,3 @@ func CacheGetTask(ctx context.Context, taskID uint) (*models.Task, error) {
 	}
 	return &task, nil
 }
-tasks
