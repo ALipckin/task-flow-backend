@@ -3,13 +3,13 @@ version: '3.8'
 services:
   auth-db:
     image: postgres:14
-    container_name: auth-db
+    container_name: '${COMPOSE_PROJECT_NAME}-db'
     environment:
       POSTGRES_USER: root
       POSTGRES_PASSWORD: root
       POSTGRES_DB: auth_db
     ports:
-      - "5435:5435"
+      - "${DB_PORT}:5435"
     command: ["postgres", "-c", "port=5435"]
     volumes:
       - auth-db-data:/var/lib/postgresql/data
@@ -23,13 +23,13 @@ services:
       retries: 5
       start_period: 10s
 
-  auth-service:
+  app:
     build: ./
-    container_name: auth-service
+    container_name: '${COMPOSE_PROJECT_NAME}-app'
     volumes:
       - .:/usr/local/bin/
     ports:
-      - "5440:8081"
+      - "${APP_PORT}:8081"
     networks:
       - task-network
     depends_on:

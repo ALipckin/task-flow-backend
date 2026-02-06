@@ -7,5 +7,5 @@ docker compose up -d
 
 To run tests:
 ```bash
-docker exec -it auth-service go test ./...
+docker exec -it auth-service-app go test ./...
 ```
