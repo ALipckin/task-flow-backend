@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"TaskRestApiService/logger"
+	"gateway/logger"
 	"github.com/gin-gonic/gin"
 	"time"
 )

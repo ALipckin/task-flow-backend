@@ -1,12 +1,13 @@
 package controllers
 
 import (
-	"TaskRestApiService/logger"
-	pb "TaskRestApiService/proto/taskpb"
 	"context"
-	"github.com/gin-gonic/gin"
+	"gateway/logger"
+	pb "gateway/proto/taskpb"
 	"net/http"
 	"strconv"
+
+	"github.com/gin-gonic/gin"
 )
 
 type TaskController struct {

@@ -1,0 +1,68 @@
+# Optional ELK stack for log aggregation.
+# Start with: docker compose -f docker-compose.yml -f docker-compose.observability.yml up -d
+# Or: make docker-up-observability
+
+version: '3.8'
+
+services:
+  fluentd:
+    build: fluentd
+    container_name: '${COMPOSE_PROJECT_NAME}-fluentd'
+    ports:
+      - "${FLUENTD_PORT:-24224}:24224"
+      - "${FLUENTD_PORT:-24224}:24224/udp"
+    volumes:
+      - ./fluentd/fluent.conf:/fluentd/etc/fluent.conf
+    environment:
+      - FLUENTD_CONF=fluent.conf
+    networks:
+      - task-network
+    restart: unless-stopped
+
+  elasticsearch:
+    image: elasticsearch:7.17.17
+    container_name: '${COMPOSE_PROJECT_NAME}-elasticsearch'
+    hostname: elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
+      interval: 10s
+      retries: 5
+      timeout: 5s
+      start_period: 30s
+    ports:
+      - "${ELASTICSEARCH_PORT:-9200}:9200"
+    networks:
+      - task-network
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+
+  kibana:
+    image: kibana:7.17.17
+    container_name: '${COMPOSE_PROJECT_NAME}-kibana'
+    restart: unless-stopped
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    ports:
+      - "${KIBANA_PORT:-5601}:5601"
+    networks:
+      - task-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5601/api/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  esdata:
+    driver: local
+
+networks:
+  task-network:
+    external: true

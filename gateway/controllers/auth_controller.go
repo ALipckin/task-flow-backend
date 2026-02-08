@@ -1,17 +1,18 @@
 package controllers
 
 import (
-	utils "TaskRestApiService/utils"
-	"github.com/gin-gonic/gin"
+	utils "gateway/utils"
 	"log"
+
+	"github.com/gin-gonic/gin"
 )
 
 type AuthController struct {
-	authHost string
+	authUrl string
 }
 
 func NewAuthController(authServiceHost string) *AuthController {
-	return &AuthController{authHost: authServiceHost}
+	return &AuthController{authUrl: authServiceHost}
 }
 
 // User Login
@@ -26,7 +27,7 @@ func NewAuthController(authServiceHost string) *AuthController {
 // @Router       /auth/login [post]
 func (ac *AuthController) Login(c *gin.Context) {
 	log.Printf("received request")
-	targetURL := c.DefaultQuery("url", ac.authHost+"/login")
+	targetURL := c.DefaultQuery("url", ac.authUrl+"/login")
 
 	utils.ProxyRequest(c, targetURL)
 }
@@ -42,7 +43,7 @@ func (ac *AuthController) Login(c *gin.Context) {
 // @Failure      400  {object}  map[string]string
 // @Router       /auth/register [post]
 func (ac *AuthController) Register(c *gin.Context) {
-	targetURL := c.DefaultQuery("url", ac.authHost+"/register")
+	targetURL := c.DefaultQuery("url", ac.authUrl+"/register")
 	utils.ProxyRequest(c, targetURL)
 }
 
@@ -56,7 +57,7 @@ func (ac *AuthController) Register(c *gin.Context) {
 // @Router       /auth/validate [get]
 // @Security     BearerAuth
 func (ac *AuthController) Validate(c *gin.Context) {
-	targetURL := c.DefaultQuery("url", ac.authHost+"/validate")
+	targetURL := c.DefaultQuery("url", ac.authUrl+"/validate")
 	utils.ProxyRequest(c, targetURL)
 }
 
@@ -70,7 +71,7 @@ func (ac *AuthController) Validate(c *gin.Context) {
 // @Router       /auth/users [get]
 // @Security     BearerAuth
 func (ac *AuthController) Users(c *gin.Context) {
-	targetURL := c.DefaultQuery("url", ac.authHost+"/users")
+	targetURL := c.DefaultQuery("url", ac.authUrl+"/users")
 	utils.ProxyRequest(c, targetURL)
 }
 
@@ -83,7 +84,7 @@ func (ac *AuthController) Users(c *gin.Context) {
 // @Router       /auth/user [get]
 // @Security     BearerAuth
 func (ac *AuthController) User(c *gin.Context) {
-	targetURL := c.DefaultQuery("url", ac.authHost+"/user")
+	targetURL := c.DefaultQuery("url", ac.authUrl+"/user")
 	utils.ProxyRequest(c, targetURL)
 }
 
@@ -96,6 +97,6 @@ func (ac *AuthController) User(c *gin.Context) {
 // @Router       /auth/logout [post]
 // @Security     BearerAuth
 func (ac *AuthController) Logout(c *gin.Context) {
-	targetURL := c.DefaultQuery("url", ac.authHost+"/logout")
+	targetURL := c.DefaultQuery("url", ac.authUrl+"/logout")
 	utils.ProxyRequest(c, targetURL)
 }

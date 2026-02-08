@@ -1,9 +1,10 @@
 package middleware
 
 import (
-	"TaskRestApiService/services"
-	"github.com/gin-gonic/gin"
+	"gateway/services"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
 func RequireAuth(c *gin.Context) {

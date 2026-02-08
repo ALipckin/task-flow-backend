@@ -1,8 +1,8 @@
 package initializers
 
 import (
-	"TaskRestApiService/consumers"
 	"fmt"
+	"gateway/consumers"
 	"log"
 	"os"
 	"time"

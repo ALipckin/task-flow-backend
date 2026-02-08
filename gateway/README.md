@@ -1,4 +1,4 @@
-# Rest Api service
+# Gateway
 
 Installation:
 - install docker 

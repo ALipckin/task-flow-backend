@@ -1,10 +1,11 @@
 package initializers
 
 import (
-	pb "TaskRestApiService/proto/taskpb"
-	"google.golang.org/grpc"
+	pb "gateway/proto/taskpb"
 	"log"
 	"os"
+
+	"google.golang.org/grpc"
 )
 
 var TaskStorageService pb.TaskServiceClient

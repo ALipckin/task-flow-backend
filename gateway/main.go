@@ -1,12 +1,12 @@
 package main
 
 import (
-	"TaskRestApiService/consumers"
-	"TaskRestApiService/controllers"
-	_ "TaskRestApiService/docs"
-	"TaskRestApiService/initializers"
-	"TaskRestApiService/middleware"
 	"context"
+	"gateway/consumers"
+	"gateway/controllers"
+	_ "gateway/docs"
+	"gateway/initializers"
+	"gateway/middleware"
 	"log"
 	"net/http"
 	"os"
@@ -82,8 +82,8 @@ func main() {
 	}
 	r.GET("/tasks/notifications", consumers.HandleWebSocketConnection)
 
-	authHost := os.Getenv("AUTH_SERVICE_URL")
-	authController := controllers.NewAuthController(authHost)
+	authUrl := os.Getenv("AUTH_SERVICE_URL")
+	authController := controllers.NewAuthController(authUrl)
 
 	authGroup := r.Group("/auth")
 	{
@@ -138,5 +138,5 @@ func main() {
 		}
 	}
 
-	log.Println("TaskRestApiService shutdown complete")
+	log.Println("gateway shutdown complete")
 }

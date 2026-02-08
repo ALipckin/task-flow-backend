@@ -1,8 +1,8 @@
 package consumers
 
 import (
-	"TaskRestApiService/services"
 	"encoding/json"
+	"gateway/services"
 	"github.com/IBM/sarama"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"

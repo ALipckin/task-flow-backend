@@ -1,11 +1,12 @@
 package controllers
 
 import (
-	"TaskRestApiService/logger"
-	"github.com/gin-gonic/gin"
+	"gateway/logger"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+
+	"github.com/gin-gonic/gin"
 )
 
 func ProxyRequest(c *gin.Context, targetURL string) {
