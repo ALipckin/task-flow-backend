@@ -3,13 +3,13 @@ version: '3.8'
 services:
   db-shard-1:
     image: postgres:14
-    container_name: db-shard-1
+    container_name: '${COMPOSE_PROJECT_NAME}-db-shard-1'
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_DB: tasks_db
     ports:
-      - "5432:5432"
+      - "${DB_SHARD_1_PORT}:5432"
     volumes:
       - db-shard-1-data:/var/lib/postgresql/data
     networks:
@@ -22,13 +22,13 @@ services:
 
   db-shard-2:
     image: postgres:14
-    container_name: db-shard-2
+    container_name: '${COMPOSE_PROJECT_NAME}-db-shard-2'
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_DB: tasks_db
     ports:
-      - "5433:5432"
+      - "${DB_SHARD_2_PORT}:5432"
     volumes:
       - db-shard-2-data:/var/lib/postgresql/data
     networks:
@@ -41,13 +41,13 @@ services:
 
   db-shard-3:
     image: postgres:14
-    container_name: db-shard-3
+    container_name: '${COMPOSE_PROJECT_NAME}-db-shard-3'
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_DB: tasks_db
     ports:
-      - "5434:5432"
+      - "${DB_SHARD_3_PORT}:5432"
     volumes:
       - db-shard-3-data:/var/lib/postgresql/data
     networks:
@@ -60,9 +60,9 @@ services:
 
   redis:
     image: redis:alpine
-    container_name: redis
+    container_name: '${COMPOSE_PROJECT_NAME}-redis'
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT}:6379"
     networks:
       - task-network
     restart: unless-stopped
@@ -75,11 +75,11 @@ services:
 
   app:
     build: ./docker
-    container_name: '${COMPOSE_PROJECT_NAME}-app-dev'
+    container_name: '${COMPOSE_PROJECT_NAME}-app'
     volumes:
       - .:/usr/local/bin/
     ports:
-      - "5436:50051"
+      - "${APP_PORT}:${GRPC_PORT}"
     depends_on:
       db-shard-1:
         condition: service_healthy
@@ -88,7 +88,7 @@ services:
       db-shard-3:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     environment:
       GRPC_PORT: ${GRPC_PORT}
       DB_SHARD_URLS: ${DB_SHARD_URLS}
