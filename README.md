@@ -31,7 +31,7 @@ TaskFlow Backend is built using a microservices architecture with the following 
 
 ## Services
 
-### 1. TaskRestApiService (Gateway)
+### 1. gateway (Gateway)
 - **Technology**: Gin (Go HTTP framework)
 - **Port**: 3000 (configurable)
 - **Responsibilities**:
@@ -154,7 +154,7 @@ make logs-auth         # Auth Service only
 make logs-notify       # Notify Service only
 
 # From service directory
-cd TaskRestApiService && make docker-logs
+cd gateway && make docker-logs
 ```
 
 ### 5. Access Services
@@ -201,19 +201,31 @@ Every service has its own Makefile. Example commands:
 
 ```bash
 # Navigate to service
-cd AuthService       # or TaskStorageService, TaskRestApiService, NotifyService
+cd auth       # or tasks, gateway, notification
 
-# Common commands (available in all services)
+# Development (inside container - recommended)
+make dev             # Start container and enter shell
+make shell           # Enter already running container
+make exec CMD="go version"  # Execute single command in container
+
+# Inside container you have full Go environment:
+# go build, go test, go run, golangci-lint, etc.
+
+# Commands from host (run in container automatically)
 make help            # Show all available commands
-make build           # Build service binary
-make run             # Run service locally
-make test            # Run tests
-make test-coverage   # Run tests with coverage report
-make lint            # Run linter
-make fmt             # Format code
+make build           # Build service binary (in container)
+make test            # Run tests (in container)
+make test-coverage   # Run tests with coverage (in container)
+make lint            # Run linter (in container)
+make fmt             # Format code (in container)
+make proto           # Regenerate protobuf (in container)
+make swagger         # Regenerate Swagger (in container)
+
+# Docker management
 make docker-up       # Start service in Docker
 make docker-down     # Stop Docker containers
 make docker-logs     # View service logs
+make docker-restart  # Restart containers
 make clean           # Clean build artifacts
 ```
 
@@ -221,15 +233,15 @@ make clean           # Clean build artifacts
 
 **TaskStorageService**:
 ```bash
-cd TaskStorageService
+cd tasks
 make proto           # Regenerate protobuf files
 make db-reset        # Reset all database shards
 make db-logs         # View database logs
 ```
 
-**TaskRestApiService**:
+**gateway**:
 ```bash
-cd TaskRestApiService
+cd gateway
 make swagger         # Regenerate Swagger docs
 make proto           # Regenerate protobuf files
 make kafka-topics    # List Kafka topics
@@ -238,7 +250,7 @@ make kafka-consume   # Consume from Kafka
 
 **NotifyService**:
 ```bash
-cd NotifyService
+cd notification
 make mailhog         # Open Mailhog UI
 ```
 
@@ -352,47 +364,82 @@ ws.onmessage = (event) => {
 
 ### Local Development
 
-#### Option 1: Run Everything in Docker (Recommended)
-```bash
-# Start all services with hot reload
-make dev
+#### Development Inside Container (Recommended)
 
-# Or start individual service
-cd TaskRestApiService
-make docker-up
+All services are configured for development inside Docker containers:
+
+```bash
+# 1. Enter development container
+cd tasks
+make dev            # Starts container and opens shell
+
+# 2. Inside container - full Go environment available:
+/usr/local/bin # go build -o bin/tasks main.go
+/usr/local/bin # go test ./...
+/usr/local/bin # go run main.go
+/usr/local/bin # golangci-lint run
+/usr/local/bin # exit
+
+# 3. Quick commands from host (run in container):
+make build          # Build in container
+make test           # Test in container
+make proto          # Regenerate protobuf in container
 ```
 
-Services use `CompileDaemon` for automatic reloading on code changes.
+**Advantages**:
+- Same environment for all developers
+- No need to install tools locally
+- Close to production environment
+- CompileDaemon provides hot reload
 
-#### Option 2: Run Service Locally (for debugging)
+#### Quick Command Execution
+
+Execute single command without entering container:
+
+```bash
+cd tasks
+make exec CMD="go version"
+make exec CMD="go test ./models -v"
+make exec CMD="ls -la"
+```
+
+#### Working with Individual Services
+
+```bash
+# Example: Developing tasks
+cd tasks
+
+# Enter container for interactive work
+make dev
+
+# Or execute commands from outside
+make build          # Build
+make test           # Test
+make lint           # Lint
+make proto          # Regenerate protobuf
+
+# View logs in separate terminal
+make docker-logs
+```
+
+#### Alternative: Local Development (without container)
+
+If you prefer to run locally:
 
 1. **Start Infrastructure**:
 ```bash
-# Start dependencies for a specific service
-cd TaskStorageService
-make docker-up  # Starts databases, Redis, Kafka
+cd tasks
+make docker-up  # Start databases, Redis, Kafka
 ```
 
 2. **Run Service Locally**:
 ```bash
 # In another terminal
-cd TaskRestApiService
-make run  # or: go run main.go
+cd tasks
+make run        # or: go run main.go
 ```
 
-#### Working with Individual Services
-
-Each service is independent and can be developed separately:
-
-```bash
-# Example: Working on AuthService
-cd AuthService
-make help           # See all available commands
-make build          # Build the service
-make test           # Run tests
-make docker-up      # Start in Docker
-make docker-logs    # View logs
-```
+**Note**: Requires Go, protoc, and other tools installed locally.
 
 ### Adding a New Shard
 
@@ -400,7 +447,7 @@ make docker-logs    # View logs
 ```yaml
 db-shard-4:
   image: postgres:14
-  container_name: postgres-shard-4
+  container_name: db-shard-4
   environment:
     POSTGRES_USER: user
     POSTGRES_PASSWORD: password
@@ -408,7 +455,7 @@ db-shard-4:
   ports:
     - "5437:5432"
   volumes:
-    - postgres-shard-4-data:/var/lib/postgresql/data
+    - db-shard-4-data:/var/lib/postgresql/data
 ```
 
 2. **Update DB_SHARD_URLS** in `.env`:
@@ -429,11 +476,11 @@ make restart
 make test
 
 # Specific service
-cd AuthService
+cd auth
 make test
 
 # With coverage report
-cd AuthService
+cd auth
 make test-coverage  # Generates coverage.html
 ```
 
@@ -444,7 +491,7 @@ make test-coverage  # Generates coverage.html
 make lint
 
 # Specific service
-cd TaskStorageService
+cd tasks
 make lint
 ```
 
@@ -455,7 +502,7 @@ make lint
 make fmt
 
 # Specific service
-cd TaskStorageService
+cd tasks
 make fmt
 ```
 
@@ -466,7 +513,7 @@ make fmt
 make proto
 
 # Specific service
-cd TaskStorageService
+cd tasks
 make proto
 ```
 
@@ -478,7 +525,7 @@ make proto
 make logs
 
 # Last 100 lines
-docker logs task-storage-service --tail 100
+docker logs tasks-app-dev --tail 100
 
 # Follow logs
 docker logs -f task-rest-api-service
@@ -490,7 +537,7 @@ docker logs -f task-rest-api-service
 make status
 
 # Database health
-docker exec postgres-shard-1 pg_isready -U user
+docker exec db-shard-1 pg_isready -U user
 
 # Redis health
 docker exec redis redis-cli ping
@@ -544,14 +591,14 @@ make up
 
 **Check connection strings**:
 ```bash
-docker exec postgres-shard-1 psql -U user -d tasks_db -c "\l"
+docker exec db-shard-1 psql -U user -d tasks_db -c "\l"
 ```
 
 ### Kafka Issues
 
 **Restart Kafka**:
 ```bash
-docker-compose -f TaskRestApiService/docker-compose.yml restart kafka zookeeper
+docker-compose -f gateway/docker-compose.yml restart kafka zookeeper
 ```
 
 **Check topics**:

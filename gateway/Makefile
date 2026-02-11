@@ -1,7 +1,7 @@
 .PHONY: help build test lint run docker-up docker-down docker-restart docker-logs clean swagger proto dev shell exec
 
 help:
-	@echo "TaskRestApiService - Available Commands"
+	@echo "gateway - Available Commands"
 	@echo ""
 	@echo "Development:"
 	@echo "  make dev           - Start dev container and enter shell"
@@ -41,12 +41,12 @@ exec:
 	@docker compose exec gateway-app $(CMD)
 
 build:
-	@echo "Building TaskRestApiService in container..."
+	@echo "Building gateway in container..."
 	@docker compose exec gateway-app go build -o bin/rest-api main.go
 	@echo "Build complete: bin/rest-api"
 
 run:
-	@echo "Starting TaskRestApiService..."
+	@echo "Starting gateway..."
 	@go run main.go
 
 test:
@@ -71,22 +71,22 @@ proto:
 	@echo "Protobuf files regenerated!"
 
 docker-up:
-	@echo "Starting TaskRestApiService in Docker..."
+	@echo "Starting gateway in Docker..."
 	@docker compose up -d
-	@echo "TaskRestApiService started!"
+	@echo "gateway started!"
 	@echo ""
 	@echo "Services: REST API and Swagger on PORT (default 3000)"
 	@echo "For ELK stack: make docker-up-observability"
 
 docker-down:
-	@echo "Stopping TaskRestApiService..."
+	@echo "Stopping gateway..."
 	@docker compose down
-	@echo "TaskRestApiService stopped!"
+	@echo "gateway stopped!"
 
 docker-restart: docker-down docker-up
 
 docker-up-observability:
-	@echo "Starting TaskRestApiService with ELK stack..."
+	@echo "Starting gateway with ELK stack..."
 	@docker compose -f docker-compose.yml -f docker-compose.observability.yml up -d
 	@echo "Started! Elasticsearch: 9200, Kibana: 5601, Fluentd: 24224"
 

@@ -16,12 +16,13 @@ help:
 	@echo "Individual Services:"
 	@echo "  make up-auth          - Start AuthService"
 	@echo "  make up-storage       - Start TaskStorageService"
-	@echo "  make up-api           - Start TaskRestApiService"
+	@echo "  make up-api           - Start gateway"
 	@echo "  make up-notify        - Start NotifyService"
 	@echo "  make down-auth        - Stop AuthService"
 	@echo "  make down-storage     - Stop TaskStorageService"
-	@echo "  make down-api         - Stop TaskRestApiService"
+	@echo "  make down-api         - Stop gateway"
 	@echo "  make down-notify      - Stop NotifyService"
+	@echo "  make up-api-observability - Start gateway with ELK stack"
 	@echo ""
 	@echo "Development:"
 	@echo "  make build            - Build all services"
@@ -40,7 +41,7 @@ up: network
 	@echo "Starting all services..."
 	@cd AuthService && docker-compose up -d
 	@cd TaskStorageService && docker-compose up -d
-	@cd TaskRestApiService && docker-compose up -d
+	@cd gateway && docker-compose up -d
 	@cd NotifyService && docker-compose up -d
 	@echo "All services started!"
 	@echo "Waiting for services to be healthy..."
@@ -50,7 +51,7 @@ up: network
 down:
 	@echo "Stopping all services..."
 	@cd NotifyService && docker-compose down
-	@cd TaskRestApiService && docker-compose down
+	@cd gateway && docker-compose down
 	@cd TaskStorageService && docker-compose down
 	@cd AuthService && docker-compose down
 	@echo "All services stopped!"
@@ -61,13 +62,13 @@ logs:
 	@echo "Streaming logs from all services..."
 	@docker-compose -f AuthService/docker-compose.yml \
 		-f TaskStorageService/docker-compose.yml \
-		-f TaskRestApiService/docker-compose.yml \
+		-f gateway/docker-compose.yml \
 		-f NotifyService/docker-compose.yml logs -f
 
 clean:
 	@echo "Stopping services and removing volumes..."
 	@cd NotifyService && docker-compose down -v
-	@cd TaskRestApiService && docker-compose down -v
+	@cd gateway && docker-compose down -v
 	@cd TaskStorageService && docker-compose down -v
 	@cd AuthService && docker-compose down -v
 	@echo "Cleanup complete!"
@@ -79,7 +80,7 @@ up-storage: network
 	@cd TaskStorageService && make docker-up
 
 up-api: network
-	@cd TaskRestApiService && make docker-up
+	@cd gateway && make docker-up
 
 up-notify: network
 	@cd NotifyService && make docker-up
@@ -91,10 +92,13 @@ down-storage:
 	@cd TaskStorageService && make docker-down
 
 down-api:
-	@cd TaskRestApiService && make docker-down
+	@cd gateway && make docker-down
 
 down-notify:
 	@cd NotifyService && make docker-down
+
+up-api-observability:
+	@cd gateway && make docker-up-observability
 
 logs-auth:
 	@cd AuthService && make docker-logs
@@ -103,7 +107,7 @@ logs-storage:
 	@cd TaskStorageService && make docker-logs
 
 logs-api:
-	@cd TaskRestApiService && make docker-logs
+	@cd gateway && make docker-logs
 
 logs-notify:
 	@cd NotifyService && make docker-logs
@@ -117,7 +121,7 @@ build:
 	@echo "Building all services..."
 	@cd AuthService && make build
 	@cd TaskStorageService && make build
-	@cd TaskRestApiService && make build
+	@cd gateway && make build
 	@cd NotifyService && make build
 	@echo "All services built successfully!"
 
@@ -125,7 +129,7 @@ test:
 	@echo "Running tests on all services..."
 	@cd AuthService && make test
 	@cd TaskStorageService && make test
-	@cd TaskRestApiService && make test
+	@cd gateway && make test
 	@cd NotifyService && make test
 	@echo "All tests completed!"
 
@@ -133,7 +137,7 @@ lint:
 	@echo "Running linter on all services..."
 	@cd AuthService && make lint
 	@cd TaskStorageService && make lint
-	@cd TaskRestApiService && make lint
+	@cd gateway && make lint
 	@cd NotifyService && make lint
 	@echo "Linting complete!"
 
@@ -141,14 +145,14 @@ fmt:
 	@echo "Formatting all code..."
 	@cd AuthService && make fmt
 	@cd TaskStorageService && make fmt
-	@cd TaskRestApiService && make fmt
+	@cd gateway && make fmt
 	@cd NotifyService && make fmt
 	@echo "Code formatted!"
 
 proto:
 	@echo "Regenerating protobuf files..."
 	@cd TaskStorageService && make proto
-	@cd TaskRestApiService && make proto
+	@cd gateway && make proto
 	@echo "Protobuf files regenerated!"
 
 
@@ -160,14 +164,14 @@ db-reset:
 
 swagger:
 	@echo "Regenerating Swagger documentation..."
-	@cd TaskRestApiService && make swagger
+	@cd gateway && make swagger
 	@echo "Swagger docs regenerated!"
 
 install-deps:
 	@echo "Installing dependencies for all services..."
 	@cd AuthService && make install-deps
 	@cd TaskStorageService && make install-deps
-	@cd TaskRestApiService && make install-deps
+	@cd gateway && make install-deps
 	@cd NotifyService && make install-deps
 	@echo "All dependencies installed!"
 
@@ -175,7 +179,7 @@ update-deps:
 	@echo "Updating dependencies for all services..."
 	@cd AuthService && make update-deps
 	@cd TaskStorageService && make update-deps
-	@cd TaskRestApiService && make update-deps
+	@cd gateway && make update-deps
 	@cd NotifyService && make update-deps
 	@echo "All dependencies updated!"
 

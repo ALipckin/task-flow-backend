@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  mailhog:
+    image: mailhog/mailhog
+    container_name: '${COMPOSE_PROJECT_NAME}-mailhog'
+    restart: unless-stopped
+    ports:
+      - "${MAILHOG_UI_PORT}:8025"
+      - "${MAILHOG_SMTP_PORT}:1025"
+    networks:
+      - task-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8025"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  app:
+    build: ./
+    container_name: '${COMPOSE_PROJECT_NAME}-app'
+    volumes:
+      - .:/usr/local/bin/
+    ports:
+      - "${APP_PORT}:8080"
+    networks:
+      - task-network
+    env_file:
+      - .env
+    depends_on:
+      mailhog:
+        condition: service_healthy
+    restart: unless-stopped
+    command: [ "CompileDaemon", "-command=go run main.go" ]
+
+networks:
+  task-network:
+    external: true

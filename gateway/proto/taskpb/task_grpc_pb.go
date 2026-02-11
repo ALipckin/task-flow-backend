@@ -19,14 +19,14 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	TaskService_CreateTask_FullMethodName = "/task.TaskService/CreateTask"
-	TaskService_GetTask_FullMethodName    = "/task.TaskService/GetTask"
-	TaskService_GetTasks_FullMethodName   = "/task.TaskService/GetTasks"
-	TaskService_UpdateTask_FullMethodName = "/task.TaskService/UpdateTask"
-	TaskService_DeleteTask_FullMethodName = "/task.TaskService/DeleteTask"
+	TaskService_CreateTask_FullMethodName = "/task.tasks/CreateTask"
+	TaskService_GetTask_FullMethodName    = "/task.tasks/GetTask"
+	TaskService_GetTasks_FullMethodName   = "/task.tasks/GetTasks"
+	TaskService_UpdateTask_FullMethodName = "/task.tasks/UpdateTask"
+	TaskService_DeleteTask_FullMethodName = "/task.tasks/DeleteTask"
 )
 
-// TaskServiceClient is the client API for TaskService service.
+// TaskServiceClient is the client API for tasks service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type TaskServiceClient interface {
@@ -90,7 +90,7 @@ func (c *taskServiceClient) DeleteTask(ctx context.Context, in *DeleteTaskReques
 	return out, nil
 }
 
-// TaskServiceServer is the server API for TaskService service.
+// TaskServiceServer is the server API for tasks service.
 // All implementations must embed UnimplementedTaskServiceServer
 // for forward compatibility
 type TaskServiceServer interface {
@@ -224,11 +224,11 @@ func _TaskService_DeleteTask_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
-// TaskService_ServiceDesc is the grpc.ServiceDesc for TaskService service.
+// TaskService_ServiceDesc is the grpc.ServiceDesc for tasks service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var TaskService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "task.TaskService",
+	ServiceName: "task.tasks",
 	HandlerType: (*TaskServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

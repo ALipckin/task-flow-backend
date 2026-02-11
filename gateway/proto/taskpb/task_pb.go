@@ -738,16 +738,16 @@ var file_task_proto_depIdxs = []int32{
 	9, // 1: task.Task.updated_at:type_name -> google.protobuf.Timestamp
 	0, // 2: task.GetTasksResponse.tasks:type_name -> task.Task
 	0, // 3: task.TaskResponse.task:type_name -> task.Task
-	1, // 4: task.TaskService.CreateTask:input_type -> task.CreateTaskRequest
-	2, // 5: task.TaskService.GetTask:input_type -> task.GetTaskRequest
-	3, // 6: task.TaskService.GetTasks:input_type -> task.GetTasksRequest
-	5, // 7: task.TaskService.UpdateTask:input_type -> task.UpdateTaskRequest
-	6, // 8: task.TaskService.DeleteTask:input_type -> task.DeleteTaskRequest
-	7, // 9: task.TaskService.CreateTask:output_type -> task.TaskResponse
-	7, // 10: task.TaskService.GetTask:output_type -> task.TaskResponse
-	4, // 11: task.TaskService.GetTasks:output_type -> task.GetTasksResponse
-	7, // 12: task.TaskService.UpdateTask:output_type -> task.TaskResponse
-	8, // 13: task.TaskService.DeleteTask:output_type -> task.DeleteTaskResponse
+	1, // 4: task.tasks.CreateTask:input_type -> task.CreateTaskRequest
+	2, // 5: task.tasks.GetTask:input_type -> task.GetTaskRequest
+	3, // 6: task.tasks.GetTasks:input_type -> task.GetTasksRequest
+	5, // 7: task.tasks.UpdateTask:input_type -> task.UpdateTaskRequest
+	6, // 8: task.tasks.DeleteTask:input_type -> task.DeleteTaskRequest
+	7, // 9: task.tasks.CreateTask:output_type -> task.TaskResponse
+	7, // 10: task.tasks.GetTask:output_type -> task.TaskResponse
+	4, // 11: task.tasks.GetTasks:output_type -> task.GetTasksResponse
+	7, // 12: task.tasks.UpdateTask:output_type -> task.TaskResponse
+	8, // 13: task.tasks.DeleteTask:output_type -> task.DeleteTaskResponse
 	9, // [9:14] is the sub-list for method output_type
 	4, // [4:9] is the sub-list for method input_type
 	4, // [4:4] is the sub-list for extension type_name
