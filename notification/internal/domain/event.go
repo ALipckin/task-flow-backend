@@ -1,4 +1,4 @@
-package models
+package domain
 
 type TaskEvent struct {
 	Event        string `json:"event"`
@@ -12,3 +12,9 @@ type TaskEvent struct {
 	CreatedAt    string `json:"created_at"`
 	UpdatedAt    string `json:"updated_at"`
 }
+
+const (
+	EventTaskCreated = "TaskCreated"
+	EventTaskUpdated = "TaskUpdated"
+	EventTaskDeleted = "TaskDeleted"
+)

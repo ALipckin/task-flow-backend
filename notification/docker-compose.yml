@@ -20,8 +20,9 @@ services:
   app:
     build: ./
     container_name: '${COMPOSE_PROJECT_NAME}-app'
+    working_dir: /app/notification
     volumes:
-      - .:/usr/local/bin/
+      - ..:/app
     ports:
       - "${APP_PORT}:8080"
     networks:
@@ -32,7 +33,11 @@ services:
       mailhog:
         condition: service_healthy
     restart: unless-stopped
-    command: [ "CompileDaemon", "-command=go run main.go" ]
+    command:
+      - CompileDaemon
+      - -directory=/app/notification
+      - -build=go build -o /tmp/notify ./cmd/notification
+      - -command=/tmp/notify
 
 networks:
   task-network:

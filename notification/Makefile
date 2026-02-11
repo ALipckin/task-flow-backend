@@ -36,12 +36,12 @@ exec:
 
 build:
 	@echo "Building NotifyService in container..."
-	@docker compose exec app go build -o bin/notify main.go
+	@docker compose exec app go build -o bin/notify ./cmd/notification
 	@echo "Build complete: bin/notify"
 
 run:
 	@echo "Starting NotifyService..."
-	@go run .
+	@go run ./cmd/notification
 
 test:
 	@echo "Running tests in container..."
