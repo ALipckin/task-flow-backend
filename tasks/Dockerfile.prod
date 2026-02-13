@@ -1,0 +1,42 @@
+# Production multi-stage Dockerfile: generate protobufs and build static binary
+
+FROM golang:1.22.2 AS builder
+
+# Install system deps for protoc
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    git \
+    curl \
+    unzip \
+    protobuf-compiler \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+
+# Install protoc plugins
+ENV GOBIN=/usr/local/bin
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28 && \
+    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3
+ENV PATH="/root/go/bin:/usr/local/bin:$PATH"
+
+# cache deps
+COPY go.mod go.sum ./
+RUN go mod download
+
+# copy sources
+COPY . .
+
+# generate protobufs into taskpb
+RUN mkdir -p ./taskpb && \
+    protoc --proto_path=./proto --proto_path=/usr/include --go_out=./taskpb --go-grpc_out=./taskpb proto/task.proto
+
+# build static binary
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags='-s -w' -o /out/tasks ./cmd/tasks
+
+# Final minimal image
+FROM alpine:3.18
+RUN apk add --no-cache ca-certificates
+WORKDIR /app
+COPY --from=builder /out/tasks /app/tasks
+EXPOSE 50051
+ENTRYPOINT ["/app/tasks"]

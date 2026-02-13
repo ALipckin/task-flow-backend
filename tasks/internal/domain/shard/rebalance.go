@@ -1,11 +1,10 @@
-package rebalance
+package shard
 
 import (
 	"context"
 	"log"
-	"tasks/helpers"
-	"tasks/initializers"
-	"tasks/models"
+	"tasks/internal/infrastructure/cache"
+	"tasks/internal/infrastructure/persistence"
 	"time"
 
 	"gorm.io/gorm"
@@ -15,10 +14,10 @@ import (
 // changed after adding a new shard, migrates their tasks to the new shard.
 // Postgres is unaware; the app copies data and updates the mapping in Redis.
 func Run(ctx context.Context) {
-	if models.ShardMgr == nil {
+	if ShardMgr == nil {
 		return
 	}
-	allShards := models.ShardMgr.GetAllShards()
+	allShards := ShardMgr.GetAllShards()
 	for currentShardIndex, shard := range allShards {
 		migratePerformerIDsFromShard(ctx, shard, currentShardIndex, allShards)
 	}
@@ -29,19 +28,19 @@ func Run(ctx context.Context) {
 // performer's tasks to the ring-assigned shard.
 func migratePerformerIDsFromShard(ctx context.Context, shard *gorm.DB, currentShardIndex int, allShards []*gorm.DB) {
 	var performerIDs []uint
-	err := shard.Model(&models.Task{}).Distinct("performer_id").Pluck("performer_id", &performerIDs).Error
+	err := shard.Model(&persistence.Task{}).Distinct("performer_id").Pluck("performer_id", &performerIDs).Error
 	if err != nil {
 		log.Printf("[rebalance] shard %d: list performer_ids: %v", currentShardIndex, err)
 		return
 	}
 
 	for _, performerID := range performerIDs {
-		newShardIndex := models.ShardMgr.GetShardByPerformerIDIndex(performerID)
+		newShardIndex := ShardMgr.GetShardByPerformerIDIndex(performerID)
 		if newShardIndex == currentShardIndex {
 			continue
 		}
 		// performer_id is now on a different shard according to the ring — migrate their tasks
-		newShard := models.ShardMgr.GetShardByIndex(newShardIndex)
+		newShard := ShardMgr.GetShardByIndex(newShardIndex)
 		if newShard == nil {
 			continue
 		}
@@ -50,7 +49,7 @@ func migratePerformerIDsFromShard(ctx context.Context, shard *gorm.DB, currentSh
 }
 
 func migrateTasksByPerformer(ctx context.Context, fromShard, toShard *gorm.DB, performerID uint, fromIndex, toIndex int) {
-	var tasks []models.Task
+	var tasks []persistence.Task
 	err := fromShard.Where("performer_id = ?", performerID).Preload("Observers").Find(&tasks).Error
 	if err != nil {
 		log.Printf("[rebalance] performer_id %d: list tasks: %v", performerID, err)
@@ -64,31 +63,31 @@ func migrateTasksByPerformer(ctx context.Context, fromShard, toShard *gorm.DB, p
 	}
 }
 
-func migrateOneTask(ctx context.Context, fromShard, toShard *gorm.DB, task models.Task, fromIndex, toIndex int) error {
+func migrateOneTask(ctx context.Context, fromShard, toShard *gorm.DB, task persistence.Task, fromIndex, toIndex int) error {
 	// Clone task to target shard (same ID)
 	if err := toShard.Create(&task).Error; err != nil {
 		return err
 	}
 	// Create observers on target shard without old IDs (avoid PK conflicts)
 	for _, obs := range task.Observers {
-		newObs := models.Observer{UserId: obs.UserId, TaskId: task.ID}
+		newObs := persistence.Observer{UserId: obs.UserId, TaskId: task.ID}
 		if err := toShard.Create(&newObs).Error; err != nil {
 			return err
 		}
 	}
 	// Remove from old shard (hard delete, not soft)
-	if err := fromShard.Unscoped().Where("task_id = ?", task.ID).Delete(&models.Observer{}).Error; err != nil {
+	if err := fromShard.Unscoped().Where("task_id = ?", task.ID).Delete(&persistence.Observer{}).Error; err != nil {
 		return err
 	}
 	if err := fromShard.Unscoped().Delete(&task).Error; err != nil {
 		return err
 	}
 	// Update task_id -> shard mapping in Redis
-	if err := helpers.SetTaskShard(ctx, task.ID, toIndex); err != nil {
+	if err := cache.SetTaskShard(ctx, task.ID, toIndex); err != nil {
 		return err
 	}
 	// Invalidate task cache so next GetTask loads from the new shard
-	initializers.RedisClient.Del(ctx, helpers.CacheKey(task.ID))
+	_ = cache.DeleteTaskCache(ctx, task.ID)
 	return nil
 }
 

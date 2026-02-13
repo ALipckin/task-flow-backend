@@ -1,9 +1,10 @@
-package models
+package persistence
 
 import (
-	"gorm.io/gorm"
 	"log"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type Task struct {
@@ -26,17 +27,15 @@ func (t *Task) ObserverIDs(shard *gorm.DB) []uint64 {
 	}
 
 	if len(t.Observers) == 0 {
-		log.Println("No observers found for the task")
+		// no observers is normal — return nil list
 		return nil
 	}
 
 	observerIds := make([]uint64, len(t.Observers))
 	for i, observer := range t.Observers {
-		log.Println("observer id: ", observer.ID)
 		observerIds[i] = uint64(observer.UserId)
 	}
 
-	log.Println("observerIds:", observerIds)
 	return observerIds
 }
 

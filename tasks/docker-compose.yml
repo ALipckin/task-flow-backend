@@ -74,10 +74,13 @@ services:
       start_period: 5s
 
   app:
-    build: ./docker
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
     container_name: '${COMPOSE_PROJECT_NAME}-app'
+    working_dir: /app
     volumes:
-      - .:/usr/local/bin/
+      - .:/app
     ports:
       - "${APP_PORT}:${GRPC_PORT}"
     depends_on:
@@ -96,7 +99,10 @@ services:
     networks:
       - task-network
     restart: unless-stopped
-    command: [ "CompileDaemon", "-command=go run main.go" ]
+    # Ensure CompileDaemon builds the specific package and runs the built binary
+    # to avoid `go build` being run in /app (which has no top-level go files).
+    # Dev mode: run CompileDaemon with explicit build command (build ./cmd/tasks -> /app/tasks) and run that binary
+    command: ["/usr/local/bin/CompileDaemon", "-build=go build -o /app/tasks ./cmd/tasks", "-command=/app/tasks"]
 
 volumes:
   db-shard-1-data:

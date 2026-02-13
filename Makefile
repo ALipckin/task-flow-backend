@@ -14,14 +14,14 @@ help:
 	@echo "  make clean            - Stop services and remove volumes"
 	@echo ""
 	@echo "Individual Services:"
-	@echo "  make up-auth          - Start AuthService"
-	@echo "  make up-storage       - Start TaskStorageService"
+	@echo "  make up-auth          - Start auth"
+	@echo "  make up-storage       - Start tasks"
 	@echo "  make up-api           - Start gateway"
-	@echo "  make up-notify        - Start NotifyService"
-	@echo "  make down-auth        - Stop AuthService"
-	@echo "  make down-storage     - Stop TaskStorageService"
+	@echo "  make up-notify        - Start notification"
+	@echo "  make down-auth        - Stop auth"
+	@echo "  make down-storage     - Stop tasks"
 	@echo "  make down-api         - Stop gateway"
-	@echo "  make down-notify      - Stop NotifyService"
+	@echo "  make down-notify      - Stop notification"
 	@echo "  make up-api-observability - Start gateway with ELK stack"
 	@echo ""
 	@echo "Development:"
@@ -39,10 +39,10 @@ network:
 
 up: network
 	@echo "Starting all services..."
-	@cd AuthService && docker-compose up -d
-	@cd TaskStorageService && docker-compose up -d
+	@cd auth && docker-compose up -d
+	@cd tasks && docker-compose up -d
 	@cd gateway && docker-compose up -d
-	@cd NotifyService && docker-compose up -d
+	@cd notification && docker-compose up -d
 	@echo "All services started!"
 	@echo "Waiting for services to be healthy..."
 	@sleep 10
@@ -50,67 +50,67 @@ up: network
 
 down:
 	@echo "Stopping all services..."
-	@cd NotifyService && docker-compose down
+	@cd notification && docker-compose down
 	@cd gateway && docker-compose down
-	@cd TaskStorageService && docker-compose down
-	@cd AuthService && docker-compose down
+	@cd tasks && docker-compose down
+	@cd auth && docker-compose down
 	@echo "All services stopped!"
 
 restart: down up
 
 logs:
 	@echo "Streaming logs from all services..."
-	@docker-compose -f AuthService/docker-compose.yml \
-		-f TaskStorageService/docker-compose.yml \
+	@docker-compose -f auth/docker-compose.yml \
+		-f tasks/docker-compose.yml \
 		-f gateway/docker-compose.yml \
-		-f NotifyService/docker-compose.yml logs -f
+		-f notification/docker-compose.yml logs -f
 
 clean:
 	@echo "Stopping services and removing volumes..."
-	@cd NotifyService && docker-compose down -v
+	@cd notification && docker-compose down -v
 	@cd gateway && docker-compose down -v
-	@cd TaskStorageService && docker-compose down -v
-	@cd AuthService && docker-compose down -v
+	@cd tasks && docker-compose down -v
+	@cd auth && docker-compose down -v
 	@echo "Cleanup complete!"
 
 up-auth: network
-	@cd AuthService && make docker-up
+	@cd auth && make docker-up
 
 up-storage: network
-	@cd TaskStorageService && make docker-up
+	@cd tasks && make docker-up
 
 up-api: network
 	@cd gateway && make docker-up
 
 up-notify: network
-	@cd NotifyService && make docker-up
+	@cd notification && make docker-up
 
 down-auth:
-	@cd AuthService && make docker-down
+	@cd auth && make docker-down
 
 down-storage:
-	@cd TaskStorageService && make docker-down
+	@cd tasks && make docker-down
 
 down-api:
 	@cd gateway && make docker-down
 
 down-notify:
-	@cd NotifyService && make docker-down
+	@cd notification && make docker-down
 
 up-api-observability:
 	@cd gateway && make docker-up-observability
 
 logs-auth:
-	@cd AuthService && make docker-logs
+	@cd auth && make docker-logs
 
 logs-storage:
-	@cd TaskStorageService && make docker-logs
+	@cd tasks && make docker-logs
 
 logs-api:
 	@cd gateway && make docker-logs
 
 logs-notify:
-	@cd NotifyService && make docker-logs
+	@cd notification && make docker-logs
 
 status:
 	@echo ""
@@ -119,47 +119,47 @@ status:
 
 build:
 	@echo "Building all services..."
-	@cd AuthService && make build
-	@cd TaskStorageService && make build
+	@cd auth && make build
+	@cd tasks && make build
 	@cd gateway && make build
-	@cd NotifyService && make build
+	@cd notification && make build
 	@echo "All services built successfully!"
 
 test:
 	@echo "Running tests on all services..."
-	@cd AuthService && make test
-	@cd TaskStorageService && make test
+	@cd auth && make test
+	@cd tasks && make test
 	@cd gateway && make test
-	@cd NotifyService && make test
+	@cd notification && make test
 	@echo "All tests completed!"
 
 lint:
 	@echo "Running linter on all services..."
-	@cd AuthService && make lint
-	@cd TaskStorageService && make lint
+	@cd auth && make lint
+	@cd tasks && make lint
 	@cd gateway && make lint
-	@cd NotifyService && make lint
+	@cd notification && make lint
 	@echo "Linting complete!"
 
 fmt:
 	@echo "Formatting all code..."
-	@cd AuthService && make fmt
-	@cd TaskStorageService && make fmt
+	@cd auth && make fmt
+	@cd tasks && make fmt
 	@cd gateway && make fmt
-	@cd NotifyService && make fmt
+	@cd notification && make fmt
 	@echo "Code formatted!"
 
 proto:
 	@echo "Regenerating protobuf files..."
-	@cd TaskStorageService && make proto
+	@cd tasks && make proto
 	@cd gateway && make proto
 	@echo "Protobuf files regenerated!"
 
 
 db-reset:
 	@echo "Resetting all databases..."
-	@cd AuthService && make db-reset
-	@cd TaskStorageService && make db-reset
+	@cd auth && make db-reset
+	@cd tasks && make db-reset
 	@echo "All databases reset! Run 'make up' to recreate them."
 
 swagger:
@@ -169,18 +169,18 @@ swagger:
 
 install-deps:
 	@echo "Installing dependencies for all services..."
-	@cd AuthService && make install-deps
-	@cd TaskStorageService && make install-deps
+	@cd auth && make install-deps
+	@cd tasks && make install-deps
 	@cd gateway && make install-deps
-	@cd NotifyService && make install-deps
+	@cd notification && make install-deps
 	@echo "All dependencies installed!"
 
 update-deps:
 	@echo "Updating dependencies for all services..."
-	@cd AuthService && make update-deps
-	@cd TaskStorageService && make update-deps
+	@cd auth && make update-deps
+	@cd tasks && make update-deps
 	@cd gateway && make update-deps
-	@cd NotifyService && make update-deps
+	@cd notification && make update-deps
 	@echo "All dependencies updated!"
 
 dev: network

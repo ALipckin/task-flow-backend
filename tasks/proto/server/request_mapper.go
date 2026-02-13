@@ -1,20 +1,20 @@
-package helpers
+package server
 
 import (
 	"errors"
-	"tasks/models"
+	"tasks/internal/infrastructure/persistence"
 	"tasks/proto/taskpb"
 	"time"
 )
 
-func ApplyTaskFieldsFromRequest(task *models.Task, req interface{}) error {
+func ApplyTaskFieldsFromRequest(task *persistence.Task, req interface{}) error {
 	switch r := req.(type) {
 	case *taskpb.CreateTaskRequest:
 		task.Title = r.Title
 		task.Description = r.Description
 		task.PerformerId = uint(r.PerformerId)
 		task.CreatorId = uint(r.CreatorId)
-		task.Observers = models.ObserversFromIDs(r.ObserverIds)
+		task.Observers = persistence.ObserversFromIDs(r.ObserverIds)
 		task.Status = r.Status
 		task.CreatedAt = time.Now()
 		task.UpdatedAt = time.Now()
@@ -23,7 +23,7 @@ func ApplyTaskFieldsFromRequest(task *models.Task, req interface{}) error {
 		task.Description = r.Description
 		task.PerformerId = uint(r.PerformerId)
 		task.CreatorId = uint(r.CreatorId)
-		task.Observers = models.ObserversFromIDs(r.ObserverIds)
+		task.Observers = persistence.ObserversFromIDs(r.ObserverIds)
 		task.Status = r.Status
 		task.UpdatedAt = time.Now()
 	default:

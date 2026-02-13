@@ -1,4 +1,4 @@
-package models
+package shard
 
 import (
 	"fmt"
@@ -122,6 +122,12 @@ func (sm *ShardManager) GetShardCount() int {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 	return len(sm.shards)
+}
+
+// Resolve is a convenience wrapper that returns the shard index for a performer ID.
+// It keeps existing call sites that expect a Resolve method.
+func (sm *ShardManager) Resolve(performerID uint) int {
+	return sm.GetShardByPerformerIDIndex(performerID)
 }
 
 // RebuildRing rebuilds the ring with the current number of shards (after adding a shard).

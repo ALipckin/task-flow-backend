@@ -1,4 +1,4 @@
-package initializers
+package kafke
 
 import (
 	"log"
@@ -35,12 +35,16 @@ func SendMessage(topic, message string) error {
 		Value: sarama.StringEncoder(message),
 	}
 
+	if KafkaProducer == nil {
+		log.Printf("No Kafka producer available, skipping message: %s", message)
+		return nil
+	}
+
 	_, _, err := KafkaProducer.SendMessage(msg)
 	if err != nil {
 		log.Printf("Error sending message to Kafka: %v", err)
 		return err
 	}
-
 	log.Printf("Message successfully sent to Kafka: %s", message)
 	return nil
 }
@@ -50,16 +54,30 @@ func SendMessageToKafka(message []byte) error {
 	// Build Kafka message
 	msg := &sarama.ProducerMessage{
 		Topic: topic,
-		Value: sarama.StringEncoder(message),
+		Value: sarama.ByteEncoder(message),
 	}
 
-	// Send message to Kafka
-	var err error
-	_, _, err = KafkaProducer.SendMessage(msg)
+	if KafkaProducer == nil {
+		log.Printf("No Kafka producer available to send message")
+		return nil
+	}
+
+	_, _, err := KafkaProducer.SendMessage(msg)
 	if err != nil {
 		log.Printf("Failed to send Kafka message: %v", err)
 		return err
 	}
+	return nil
+}
 
+// CloseProducer closes the package producer
+func CloseProducer() error {
+	if KafkaProducer == nil {
+		return nil
+	}
+	if err := KafkaProducer.Close(); err != nil {
+		return err
+	}
+	KafkaProducer = nil
 	return nil
 }

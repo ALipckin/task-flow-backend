@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    image: tasks-app:prod
+    ports:
+      - "${APP_PORT}:${GRPC_PORT}"
+    environment:
+      - GRPC_PORT=${GRPC_PORT}
+      - DB_SHARD_URLS=${DB_SHARD_URLS}
+      - REDIS_URL=${REDIS_URL}
+    restart: unless-stopped
+    networks:
+      - task-network
+
+networks:
+  task-network:
+    external: true

@@ -1,27 +1,50 @@
-FROM golang:1.22.2-alpine
+FROM golang:1.22.2
 
-RUN apk add --no-cache \
-    libc6-compat \
+# Install system dependencies (Debian-based image)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
     bash \
     git \
-    build-base \
-    protobuf-dev \
+    build-essential \
     curl \
-    unzip
+    unzip \
+    pkg-config \
+    protobuf-compiler \
+    libprotobuf-dev \
+    libprotoc-dev \
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/local
-RUN curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v21.8/protoc-21.8-linux-x86_64.zip \
-    && unzip protoc-21.8-linux-x86_64.zip \
-    && rm protoc-21.8-linux-x86_64.zip
+# protoc is provided by package 'protobuf-compiler'
+
+# Install Go binaries to /usr/local/bin so they're available in PATH at runtime
+ENV GOBIN=/usr/local/bin
 
 RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28 && \
     go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3
 
-ENV PATH="/root/go/bin:$PATH"
-WORKDIR /usr/local/bin/
+ENV PATH="/root/go/bin:/usr/local/bin:$PATH"
 
+# install CompileDaemon for live-reload during development
 RUN go install github.com/githubnemo/CompileDaemon@latest
 
-WORKDIR /usr/local/bin
+WORKDIR /app
 
-CMD ["CompileDaemon", "-command=go run main.go"]
+# Copy source to image so protobufs can be generated at build time
+COPY . /app
+
+# Generate protobuf Go bindings during image build
+# Add system include paths so well-known types (google/protobuf/timestamp.proto) are resolved
+RUN mkdir -p ./taskpb && \
+    protoc \
+    --proto_path=./proto \
+    --proto_path=/usr/include \
+    --proto_path=/usr/local/include \
+    --go_out=./taskpb \
+    --go-grpc_out=./taskpb \
+    proto/task.proto
+
+# In docker-compose we mount project root into /app for live dev, so generated files may be overridden by mount.
+# Run CompileDaemon to watch files and (re)build and run the package under ./cmd/tasks.
+# Use explicit build flag so CompileDaemon doesn't default to building the top-level /app (which has no top-level Go files).
+CMD ["CompileDaemon", "-build=go build -o /app/tasks ./cmd/tasks", "-command=/app/tasks"]

@@ -2,11 +2,12 @@ package middleware
 
 import (
 	"context"
+	"tasks/logger"
+
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
-	"tasks/logger"
 )
 
 func UnaryLoggingInterceptor() grpc.UnaryServerInterceptor {
