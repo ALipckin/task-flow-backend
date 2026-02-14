@@ -1,4 +1,4 @@
-package server
+package grpc
 
 import (
 	"tasks/internal/domain"

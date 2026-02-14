@@ -15,4 +15,8 @@ func (r *PostgresRepository) Save(ctx context.Context, rec *port.NotificationRec
 	return nil
 }
 
+func (r *PostgresRepository) Get(ctx context.Context) error {
+	return nil
+}
+
 var _ port.Repository = (*PostgresRepository)(nil)

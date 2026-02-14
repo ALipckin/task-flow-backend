@@ -1,4 +1,4 @@
-package server
+package grpc
 
 import (
 	"context"
@@ -16,6 +16,7 @@ type TaskServer struct {
 	taskpb.UnimplementedTaskServiceServer
 	ShardManager *shard.ShardManager
 	CreateUC     *use_case.CreateTask
+	GetTasksUC   *use_case.GetTasks
 	Producer     *adapters.KafkaProducerAdapter
 }
 
