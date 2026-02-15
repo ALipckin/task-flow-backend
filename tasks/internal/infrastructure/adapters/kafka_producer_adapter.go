@@ -3,11 +3,12 @@ package adapters
 import (
 	"context"
 	"encoding/json"
-	"gorm.io/gorm"
 	"log"
 	"tasks/internal/domain"
 	"tasks/internal/infrastructure/kafke"
 	"tasks/internal/infrastructure/persistence"
+
+	"gorm.io/gorm"
 )
 
 type KafkaProducerAdapter struct{}
@@ -18,6 +19,35 @@ func (a *KafkaProducerAdapter) PublishCreated(ctx context.Context, task domain.T
 	// prepare payload
 	payload := map[string]interface{}{
 		"event": "TaskCreated",
+		"id":    task.ID,
+		"title": task.Title,
+	}
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	// send asynchronously and protect against panics / nil receivers
+	go func(data []byte) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("panic while sending kafka message: %v", r)
+			}
+		}()
+
+		// send via kafke package
+		if err := kafke.SendMessageToKafka(data); err != nil {
+			log.Printf("kafka send error: %v", err)
+		}
+	}(b)
+
+	return nil
+}
+
+func (a *KafkaProducerAdapter) PublishDeleted(ctx context.Context, task domain.Task) error {
+	// prepare payload
+	payload := map[string]interface{}{
+		"event": "TaskDeleted",
 		"id":    task.ID,
 		"title": task.Title,
 	}

@@ -8,6 +8,7 @@ import (
 )
 
 type Task struct {
+	// TODO change ids to int64
 	ID          uint       `gorm:"primaryKey"`
 	Title       string     `gorm:"type:varchar(255);not null"`
 	Description string     `gorm:"type:text"`

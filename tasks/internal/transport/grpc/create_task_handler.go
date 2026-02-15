@@ -24,6 +24,6 @@ func (s *TaskServer) CreateTask(
 	}
 
 	return &taskpb.TaskResponse{
-		Task: ToProto(task),
+		Task: ToProto(&task),
 	}, nil
 }

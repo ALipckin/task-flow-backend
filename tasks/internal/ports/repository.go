@@ -20,6 +20,8 @@ type Repository interface {
 	// Find returns tasks matching the filter from the specified shard index.
 	// If shardIndex is negative, caller may interpret it as "search all shards" (adapter-specific).
 	Find(ctx context.Context, filter TaskFilter, shardIndex int) ([]domain.Task, error)
+	Delete(ctx context.Context, taskID uint) error
+	GetByID(ctx context.Context, taskID uint) (*domain.Task, error)
 }
 
 // IDAllocator generates IDs for new tasks.

@@ -26,7 +26,7 @@ func (s *TaskServer) GetTasks(
 
 	protoTasks := make([]*taskpb.Task, 0, len(tasks))
 	for _, task := range tasks {
-		protoTasks = append(protoTasks, ToProto(task))
+		protoTasks = append(protoTasks, ToProto(&task))
 	}
 
 	return &taskpb.GetTasksResponse{Tasks: protoTasks}, nil

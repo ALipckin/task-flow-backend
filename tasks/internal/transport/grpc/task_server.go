@@ -17,6 +17,7 @@ type TaskServer struct {
 	ShardManager *shard.ShardManager
 	CreateUC     *use_case.CreateTask
 	GetTasksUC   *use_case.GetTasks
+	DeleteUC     *use_case.DeleteTask
 	Producer     *adapters.KafkaProducerAdapter
 }
 

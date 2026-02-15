@@ -19,4 +19,8 @@ func (r *PostgresRepository) Get(ctx context.Context) error {
 	return nil
 }
 
+func (r *PostgresRepository) Delete(ctx context.Context) error {
+	return nil
+}
+
 var _ port.Repository = (*PostgresRepository)(nil)

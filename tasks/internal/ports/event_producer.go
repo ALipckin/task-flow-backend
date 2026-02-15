@@ -9,4 +9,5 @@ import (
 // Use-cases depend on this interface to notify other services.
 type EventProducer interface {
 	PublishCreated(ctx context.Context, task domain.Task) error
+	PublishDeleted(ctx context.Context, task domain.Task) error
 }

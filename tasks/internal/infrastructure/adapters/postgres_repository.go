@@ -5,6 +5,7 @@ import (
 	"errors"
 	"tasks/internal/domain"
 	"tasks/internal/domain/shard"
+	"tasks/internal/infrastructure/cache"
 	"tasks/internal/infrastructure/persistence"
 	"tasks/internal/ports"
 )
@@ -78,4 +79,48 @@ func (r *PostgresRepository) Find(ctx context.Context, filter ports.TaskFilter, 
 	}
 
 	return result, nil
+}
+
+func (r *PostgresRepository) Delete(ctx context.Context, taskID uint) error {
+	shardIndex, err := cache.GetTaskShard(ctx, taskID)
+	if err != nil {
+		return err
+	}
+	db := r.ShardManager.GetShardByIndex(shardIndex)
+	if db == nil {
+		return errors.New("shard not found")
+	}
+
+	return db.Delete(&persistence.Task{ID: taskID}, taskID).Error
+}
+
+func (r *PostgresRepository) GetByID(ctx context.Context, taskID uint) (*domain.Task, error) {
+	shardIndex, err := cache.GetTaskShard(ctx, taskID)
+	if err != nil {
+		return nil, err
+	}
+
+	db := r.ShardManager.GetShardByIndex(shardIndex)
+	if db == nil {
+		return nil, errors.New("shard not found")
+	}
+
+	var task persistence.Task
+
+	if err := db.WithContext(ctx).
+		First(&task, taskID).Error; err != nil {
+		return nil, err
+	}
+
+	return &domain.Task{
+		ID:          task.ID,
+		Title:       task.Title,
+		Description: task.Description,
+		PerformerId: task.PerformerId,
+		CreatorId:   task.CreatorId,
+		Status:      task.Status,
+		Observers:   task.Observers,
+		CreatedAt:   task.CreatedAt,
+		UpdatedAt:   task.UpdatedAt,
+	}, nil
 }
