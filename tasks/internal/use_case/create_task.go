@@ -43,7 +43,7 @@ func (uc *CreateTask) Execute(ctx context.Context, cmd CreateTaskCommand) (domai
 		return domain.Task{}, err
 	}
 
-	_ = uc.cache.Set(ctx, task)
+	_ = uc.cache.SetTask(ctx, task)
 	_ = uc.producer.PublishCreated(ctx, task)
 
 	return task, nil
