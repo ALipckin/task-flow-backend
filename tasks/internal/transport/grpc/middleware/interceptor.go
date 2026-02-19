@@ -10,6 +10,10 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
+type contextKey string
+
+const requestIDContextKey contextKey = "requestID"
+
 func UnaryLoggingInterceptor() grpc.UnaryServerInterceptor {
 	return func(
 		ctx context.Context,
@@ -26,7 +30,7 @@ func UnaryLoggingInterceptor() grpc.UnaryServerInterceptor {
 			reqID = uuid.New().String()
 		}
 
-		ctx = context.WithValue(ctx, "requestID", reqID)
+		ctx = context.WithValue(ctx, requestIDContextKey, reqID)
 		logger.Info(ctx, "Incoming gRPC request", zap.String("method", info.FullMethod))
 		resp, err := handler(ctx, req)
 		if err != nil {

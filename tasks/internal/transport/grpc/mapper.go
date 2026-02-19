@@ -45,6 +45,7 @@ func ToDomain(pb *taskpb.Task) *domain.Task {
 	}
 }
 
+//nolint:unused // Reserved conversion helper for partial update payload mapping.
 func uintSliceToUint64(src []uint) []uint64 {
 	if len(src) == 0 {
 		return nil
@@ -56,6 +57,7 @@ func uintSliceToUint64(src []uint) []uint64 {
 	return res
 }
 
+//nolint:unused // Reserved conversion helper for partial update payload mapping.
 func uint64SliceToUint(src []uint64) []uint {
 	if len(src) == 0 {
 		return nil

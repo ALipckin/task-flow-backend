@@ -26,7 +26,9 @@ type RequestBody struct {
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		logger.Log(logger.LevelError, "Failed to write JSON response", err.Error())
+	}
 }
 
 func (ac *AuthController) SignUp(w http.ResponseWriter, r *http.Request) {

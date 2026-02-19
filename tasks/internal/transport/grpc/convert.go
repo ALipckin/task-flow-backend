@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm"
 )
 
+//nolint:unused // Kept as legacy mapper used by external branch integrations.
 func convertToProto(task persistence.Task, shard *gorm.DB) *taskpb.Task {
 	return &taskpb.Task{
 		Id:          uint64(task.ID),

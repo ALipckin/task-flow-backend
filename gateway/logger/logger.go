@@ -2,6 +2,7 @@ package logger
 
 import (
 	"encoding/json"
+	"log"
 	"os"
 	"time"
 )
@@ -36,7 +37,9 @@ func Log(level LogLevel, message string, ctx any) {
 		Message:   message,
 		Context:   ctx,
 	}
-	logEncoder.Encode(entry)
+	if err := logEncoder.Encode(entry); err != nil {
+		log.Printf("logger encode error: %v", err)
+	}
 }
 
 func LogRequest(method, path, remoteAddr, userAgent string, statusCode int, duration time.Duration) {
@@ -51,5 +54,7 @@ func LogRequest(method, path, remoteAddr, userAgent string, statusCode int, dura
 		StatusCode: statusCode,
 		DurationMS: duration.Milliseconds(),
 	}
-	logEncoder.Encode(entry)
+	if err := logEncoder.Encode(entry); err != nil {
+		log.Printf("logger encode error: %v", err)
+	}
 }

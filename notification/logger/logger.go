@@ -2,6 +2,7 @@ package logger
 
 import (
 	"encoding/json"
+	"log"
 	"os"
 	"time"
 )
@@ -36,5 +37,7 @@ func Log(level LogLevel, message string, ctx any) {
 		Message:   message,
 		Context:   ctx,
 	}
-	logEncoder.Encode(entry)
+	if err := logEncoder.Encode(entry); err != nil {
+		log.Printf("logger encode error: %v", err)
+	}
 }

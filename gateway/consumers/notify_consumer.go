@@ -65,20 +65,35 @@ func HandleWebSocketConnection(c *gin.Context) {
 	err = json.Unmarshal(msg, &authData)
 	if err != nil {
 		log.Println("Error parsing auth message:", err)
-		conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseUnsupportedData, "Invalid auth format"))
+		if writeErr := conn.WriteMessage(
+			websocket.CloseMessage,
+			websocket.FormatCloseMessage(websocket.CloseUnsupportedData, "Invalid auth format"),
+		); writeErr != nil {
+			log.Println("Error writing close message:", writeErr)
+		}
 		return
 	}
 
 	if authData.Type != "authenticate" || authData.Token == "" {
 		log.Println("Invalid auth message received")
-		conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseUnsupportedData, "Invalid auth data"))
+		if writeErr := conn.WriteMessage(
+			websocket.CloseMessage,
+			websocket.FormatCloseMessage(websocket.CloseUnsupportedData, "Invalid auth data"),
+		); writeErr != nil {
+			log.Println("Error writing close message:", writeErr)
+		}
 		return
 	}
 
 	user, err := services.ValidateToken(authData.Token)
 	if err != nil {
 		log.Println("Invalid token:", err)
-		conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "Invalid token"))
+		if writeErr := conn.WriteMessage(
+			websocket.CloseMessage,
+			websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "Invalid token"),
+		); writeErr != nil {
+			log.Println("Error writing close message:", writeErr)
+		}
 		return
 	}
 

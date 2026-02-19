@@ -32,13 +32,6 @@ func RequireAuth(db *gorm.DB) func(http.Handler) http.Handler {
 	}
 }
 
-func userBelongsToGroup(user models.User, groupName string) bool {
-	if user.Group == groupName {
-		return true
-	}
-	return false
-}
-
 func parseAndValidateToken(r *http.Request) (*jwt.Token, jwt.MapClaims, error) {
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
