@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 var TaskStorageService pb.TaskServiceClient
@@ -15,7 +16,7 @@ func InitTaskStorageService() pb.TaskServiceClient {
 	if host == "" {
 		log.Fatal("❌ Error: TASK_STORAGE_SERVICE_HOST not set")
 	}
-	conn, err := grpc.Dial(host, grpc.WithInsecure())
+	conn, err := grpc.NewClient(host, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("❌ Error: Failed to connect to gRPC server: %v", err)
 	}

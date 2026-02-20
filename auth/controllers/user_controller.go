@@ -20,6 +20,14 @@ type UserController struct {
 	DB *gorm.DB
 }
 
+func writeJSONResponse(w http.ResponseWriter, status int, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		http.Error(w, "Failed to encode JSON response", http.StatusInternalServerError)
+	}
+}
+
 func (uc UserController) GetUser(w http.ResponseWriter, r *http.Request) {
 	queryParams := r.URL.Query()
 	id := queryParams.Get("id")
@@ -33,15 +41,13 @@ func (uc UserController) GetUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-
 	userResponse := Response{
 		Id:    user.ID,
 		Email: user.Email,
 		Name:  user.Name,
 	}
 
-	json.NewEncoder(w).Encode(userResponse)
+	writeJSONResponse(w, http.StatusOK, userResponse)
 }
 
 func (uc UserController) GetUsers(w http.ResponseWriter, r *http.Request) {
@@ -65,8 +71,7 @@ func (uc UserController) GetUsers(w http.ResponseWriter, r *http.Request) {
 		if len(validIDs) > 0 {
 			db = db.Where("id IN ?", validIDs)
 		} else {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode([]Response{})
+			writeJSONResponse(w, http.StatusOK, []Response{})
 			return
 		}
 	}
@@ -103,7 +108,6 @@ func (uc UserController) GetUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
 	var userResponses []Response
 	for _, user := range users {
 		userResponses = append(userResponses, Response{
@@ -112,5 +116,5 @@ func (uc UserController) GetUsers(w http.ResponseWriter, r *http.Request) {
 			Name:  user.Name,
 		})
 	}
-	json.NewEncoder(w).Encode(userResponses)
+	writeJSONResponse(w, http.StatusOK, userResponses)
 }

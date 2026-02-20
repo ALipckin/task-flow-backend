@@ -8,6 +8,9 @@ import (
 	"tasks/internal/infrastructure/cache"
 	"tasks/internal/infrastructure/persistence"
 	"tasks/internal/ports"
+
+	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
 )
 
 // PostgresRepository implements ports.Repository using GORM shards via shard.Manager.
@@ -97,9 +100,36 @@ func (r *PostgresRepository) Delete(ctx context.Context, taskID uint) error {
 func (r *PostgresRepository) GetByID(ctx context.Context, taskID uint) (*domain.Task, error) {
 	shardIndex, err := cache.GetTaskShard(ctx, taskID)
 	if err != nil {
-		return nil, err
-	}
+		if errors.Is(err, redis.Nil) {
+			for _, db := range r.ShardManager.GetAllShards() {
+				var task persistence.Task
+				err := db.WithContext(ctx).
+					Preload("Observers").
+					First(&task, taskID).Error
+				if err == nil {
+					return &domain.Task{
+						ID:          task.ID,
+						Title:       task.Title,
+						Description: task.Description,
+						PerformerId: task.PerformerId,
+						CreatorId:   task.CreatorId,
+						Status:      task.Status,
+						Observers:   task.Observers,
+						CreatedAt:   task.CreatedAt,
+						UpdatedAt:   task.UpdatedAt,
+					}, nil
+				}
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					continue
+				}
+				return nil, err
+			}
+			return nil, gorm.ErrRecordNotFound // not found in any shard
 
+		} else {
+			return nil, err // real infrastructure failure
+		}
+	}
 	db := r.ShardManager.GetShardByIndex(shardIndex)
 	if db == nil {
 		return nil, errors.New("shard not found")
@@ -108,6 +138,7 @@ func (r *PostgresRepository) GetByID(ctx context.Context, taskID uint) (*domain.
 	var task persistence.Task
 
 	if err := db.WithContext(ctx).
+		Preload("Observers").
 		First(&task, taskID).Error; err != nil {
 		return nil, err
 	}

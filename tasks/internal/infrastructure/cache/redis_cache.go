@@ -82,7 +82,7 @@ func DelTaskShard(ctx context.Context, taskID uint) error {
 	return redisClient.Del(ctx, fmt.Sprintf(taskShardKeyFmt, taskID)).Err()
 }
 
-func CacheSetTask(ctx context.Context, task persistence.Task) error {
+func SetTask(ctx context.Context, task persistence.Task) error {
 	data, err := json.Marshal(task)
 	if err != nil {
 		return err
@@ -90,7 +90,7 @@ func CacheSetTask(ctx context.Context, task persistence.Task) error {
 	return redisClient.Set(ctx, CacheKey(task.ID), data, 10*time.Minute).Err()
 }
 
-func CacheGetTask(ctx context.Context, taskID uint) (*persistence.Task, error) {
+func GetTask(ctx context.Context, taskID uint) (*persistence.Task, error) {
 	data, err := redisClient.Get(ctx, CacheKey(taskID)).Result()
 	if err != nil {
 		return nil, err

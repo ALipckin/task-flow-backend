@@ -11,7 +11,7 @@ type RedisCacheAdapter struct{}
 
 func NewRedisCacheAdapter() *RedisCacheAdapter { return &RedisCacheAdapter{} }
 
-func (a *RedisCacheAdapter) Set(ctx context.Context, task domain.Task) error {
+func (a *RedisCacheAdapter) SetTask(ctx context.Context, task domain.Task) error {
 	p := persistence.Task{
 		ID:          task.ID,
 		Title:       task.Title,
@@ -20,11 +20,11 @@ func (a *RedisCacheAdapter) Set(ctx context.Context, task domain.Task) error {
 		CreatorId:   task.CreatorId,
 		Status:      task.Status,
 	}
-	return cache.CacheSetTask(ctx, p)
+	return cache.SetTask(ctx, p)
 }
 
-func (a *RedisCacheAdapter) Get(ctx context.Context, taskID uint) (domain.Task, error) {
-	p, err := cache.CacheGetTask(ctx, taskID)
+func (a *RedisCacheAdapter) GetTask(ctx context.Context, taskID uint) (domain.Task, error) {
+	p, err := cache.GetTask(ctx, taskID)
 	if err != nil {
 		return domain.Task{}, err
 	}
