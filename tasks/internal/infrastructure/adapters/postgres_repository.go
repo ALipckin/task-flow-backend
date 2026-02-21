@@ -8,9 +8,11 @@ import (
 	"tasks/internal/infrastructure/cache"
 	"tasks/internal/infrastructure/persistence"
 	"tasks/internal/ports"
+	"tasks/logger"
 
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
+	glogger "gorm.io/gorm/logger"
 )
 
 // PostgresRepository implements ports.Repository using GORM shards via shard.Manager.
@@ -154,4 +156,161 @@ func (r *PostgresRepository) GetByID(ctx context.Context, taskID uint) (*domain.
 		CreatedAt:   task.CreatedAt,
 		UpdatedAt:   task.UpdatedAt,
 	}, nil
+}
+
+func (r *PostgresRepository) Update(ctx context.Context, input ports.UpdateTaskInput) (*domain.Task, error) {
+	taskID := input.ID
+
+	currentShardIndex, err := cache.GetTaskShard(ctx, taskID)
+	var fromShard *gorm.DB
+	var task persistence.Task
+
+	if err == nil {
+		fromShard = r.ShardManager.GetShardByIndex(currentShardIndex)
+		if fromShard != nil {
+			if err := fromShard.First(&task, taskID).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return nil, gorm.ErrRecordNotFound
+				}
+				return nil, err
+			}
+		}
+	} else {
+		if cache.IsNilError(err) {
+			logger.Warn(ctx, "cache shard mapping miss for update", logger.ZapUint("task_id", taskID))
+		} else {
+			logger.Warn(ctx, "cache error on get shard for update", logger.ZapError(err))
+		}
+	}
+
+	if fromShard == nil {
+		allShards := r.ShardManager.GetAllShards()
+		found := false
+		for idx, sh := range allShards {
+			if sh == nil {
+				continue
+			}
+
+			var t persistence.Task
+			if err := sh.Session(&gorm.Session{Logger: glogger.Default.LogMode(glogger.Silent)}).First(&t, taskID).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					continue
+				}
+				return nil, err
+			}
+
+			fromShard = sh
+			currentShardIndex = idx
+			task = t
+			found = true
+			break
+		}
+		if !found {
+			return nil, gorm.ErrRecordNotFound
+		}
+	}
+
+	oldPerformerID := task.PerformerId
+
+	if err := fromShard.Where("task_id = ?", task.ID).Delete(&persistence.Observer{}).Error; err != nil {
+		return nil, err
+	}
+
+	task.Title = input.Title
+	task.Description = input.Description
+	task.PerformerId = input.PerformerID
+	task.CreatorId = input.CreatorID
+	task.Observers = observersFromUintIDs(input.ObserverIDs)
+	task.Status = input.Status
+
+	newShardIndex := r.ShardManager.GetShardByPerformerIDIndex(task.PerformerId)
+	needMigrate := oldPerformerID != task.PerformerId && newShardIndex != currentShardIndex
+
+	if needMigrate {
+		toShard := r.ShardManager.GetShardByIndex(newShardIndex)
+		if toShard == nil {
+			return nil, errors.New("target shard not found")
+		}
+
+		if err := migrateTaskToShard(ctx, &task, fromShard, toShard, newShardIndex); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := fromShard.Save(&task).Error; err != nil {
+			return nil, err
+		}
+
+		for _, obs := range task.Observers {
+			newObs := persistence.Observer{UserId: obs.UserId, TaskId: task.ID}
+			if err := fromShard.Create(&newObs).Error; err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if err := cache.DeleteTaskCache(ctx, task.ID); err != nil {
+		logger.Warn(ctx, "cache delete failed", logger.ZapError(err))
+	}
+
+	return persistenceToDomainTask(task), nil
+}
+
+func migrateTaskToShard(
+	ctx context.Context,
+	task *persistence.Task,
+	fromShard *gorm.DB,
+	toShard *gorm.DB,
+	toIndex int,
+) error {
+	if err := toShard.Create(task).Error; err != nil {
+		return err
+	}
+
+	for _, obs := range task.Observers {
+		newObs := persistence.Observer{UserId: obs.UserId, TaskId: task.ID}
+		if err := toShard.Create(&newObs).Error; err != nil {
+			return err
+		}
+	}
+
+	if err := fromShard.Unscoped().Where("task_id = ?", task.ID).Delete(&persistence.Observer{}).Error; err != nil {
+		return err
+	}
+	if err := fromShard.Unscoped().Delete(task).Error; err != nil {
+		return err
+	}
+
+	if err := cache.SetTaskShard(ctx, task.ID, toIndex); err != nil {
+		return err
+	}
+	_ = cache.DeleteTaskCache(ctx, task.ID)
+
+	return nil
+}
+
+func observersFromUintIDs(ids []uint) []persistence.Observer {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	observers := make([]persistence.Observer, len(ids))
+	for i := range ids {
+		observers[i] = persistence.Observer{UserId: ids[i]}
+	}
+	return observers
+}
+
+func persistenceToDomainTask(task persistence.Task) *domain.Task {
+	return &domain.Task{
+		ID:          task.ID,
+		Title:       task.Title,
+		Description: task.Description,
+		PerformerId: task.PerformerId,
+		CreatorId:   task.CreatorId,
+		Status:      task.Status,
+		Observers:   task.Observers,
+		CreatedAt:   task.CreatedAt,
+		UpdatedAt:   task.UpdatedAt,
+		DeletedAt:   task.DeletedAt,
+	}
 }

@@ -7,8 +7,6 @@ import (
 	"tasks/internal/domain"
 	"tasks/internal/infrastructure/kafke"
 	"tasks/internal/infrastructure/persistence"
-
-	"gorm.io/gorm"
 )
 
 type KafkaProducerAdapter struct{}
@@ -73,16 +71,15 @@ func (a *KafkaProducerAdapter) PublishDeleted(ctx context.Context, task domain.T
 	return nil
 }
 
-// PublishTaskEvent sends arbitrary task event payload similar to previous helpers.SendTaskEventToKafka
-func (a *KafkaProducerAdapter) PublishTaskEvent(ctx context.Context, event string, task persistence.Task, shard *gorm.DB) error {
+func (a *KafkaProducerAdapter) PublishUpdated(ctx context.Context, task domain.Task) error {
 	message := map[string]interface{}{
-		"event":         event,
+		"event":         "TaskUpdated",
 		"task_id":       task.ID,
 		"title":         task.Title,
 		"description":   task.Description,
 		"performer_id":  task.PerformerId,
 		"creator_id":    task.CreatorId,
-		"observers_ids": task.ObserverIDs(shard),
+		"observers_ids": observerIDs(task.Observers),
 		"status":        task.Status,
 		"created_at":    task.CreatedAt,
 		"updated_at":    task.UpdatedAt,
@@ -104,4 +101,16 @@ func (a *KafkaProducerAdapter) PublishTaskEvent(ctx context.Context, event strin
 	}(b)
 
 	return nil
+}
+
+func observerIDs(observers []persistence.Observer) []uint {
+	if len(observers) == 0 {
+		return nil
+	}
+
+	ids := make([]uint, len(observers))
+	for i := range observers {
+		ids[i] = observers[i].UserId
+	}
+	return ids
 }

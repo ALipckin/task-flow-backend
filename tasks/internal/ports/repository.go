@@ -13,6 +13,16 @@ type TaskFilter struct {
 	PerformerID uint
 }
 
+type UpdateTaskInput struct {
+	ID          uint
+	Title       string
+	Description string
+	Status      string
+	PerformerID uint
+	CreatorID   uint
+	ObserverIDs []uint
+}
+
 // Repository represents persistence operations required by use-cases.
 // Save stores a domain.Task into the given shard index (application chooses shard DB instance).
 type Repository interface {
@@ -22,6 +32,7 @@ type Repository interface {
 	Find(ctx context.Context, filter TaskFilter, shardIndex int) ([]domain.Task, error)
 	Delete(ctx context.Context, taskID uint) error
 	GetByID(ctx context.Context, taskID uint) (*domain.Task, error)
+	Update(ctx context.Context, input UpdateTaskInput) (*domain.Task, error)
 }
 
 // IDAllocator generates IDs for new tasks.

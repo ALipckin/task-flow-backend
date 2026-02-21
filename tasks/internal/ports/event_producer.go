@@ -10,4 +10,5 @@ import (
 type EventProducer interface {
 	PublishCreated(ctx context.Context, task domain.Task) error
 	PublishDeleted(ctx context.Context, task domain.Task) error
+	PublishUpdated(ctx context.Context, task domain.Task) error
 }
