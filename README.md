@@ -5,28 +5,23 @@ A microservices-based task management system built with Go, featuring database s
 ## Architecture Overview
 
 TaskFlow Backend is built using a microservices architecture with the following services:
+```mermaid
+flowchart TD
+    A["REST API Gateway<br/>(Gin Framework - HTTP/WebSocket)"]
 
-```
-┌─────────────────┐
-│   REST API      │ ← Gin Framework (HTTP/WebSocket)
-│   Gateway       │
-└────────┬────────┘
-         │
-    ┌────┴────┬─────────────┬──────────────┐
-    │         │             │              │
-┌───▼───┐ ┌──▼──────┐ ┌────▼─────┐ ┌─────▼──────┐
-│ Auth  │ │  Task   │ │  Notify  │ │   Kafka    │
-│Service│ │ Storage │ │ Service  │ │  Message   │
-│       │ │ Service │ │          │ │   Broker   │
-└───┬───┘ └────┬────┘ └────┬─────┘ └────────────┘
-    │          │           │
-    │     ┌────┴───────────┴───┐
-    │     │                    │
-┌───▼─────▼──┐          ┌─────▼──────┐
-│ PostgreSQL │          │   Redis    │
-│ (Auth DB + │          │  (Cache +  │
-│ 3 Shards)  │          │  Task IDs) │
-└────────────┘          └────────────┘
+    A -->|Events| K["Kafka Message Broker"]
+    C -->|Events| K
+    D -->|Events| K
+
+    A --> B["Auth Service"]
+
+    K --> C["Task Storage Service"]
+    K --> D["Notify Service"]
+
+    B --> E["PostgreSQL (Auth DB)"]
+
+    C --> F["PostgreSQL (Task DB)"]
+    C --> G["Redis (Task Cache)"]
 ```
 
 ## Services
