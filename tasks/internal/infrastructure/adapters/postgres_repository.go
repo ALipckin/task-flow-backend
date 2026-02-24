@@ -89,7 +89,15 @@ func (r *PostgresRepository) Find(ctx context.Context, filter ports.TaskFilter, 
 func (r *PostgresRepository) Delete(ctx context.Context, taskID uint) error {
 	shardIndex, err := cache.GetTaskShard(ctx, taskID)
 	if err != nil {
-		return err
+		if !cache.IsNilError(err) {
+			return err
+		}
+
+		shardIndex, err = r.findShardIndexByTaskID(ctx, taskID)
+		if err != nil {
+			return err
+		}
+		_ = cache.SetTaskShard(ctx, taskID, shardIndex)
 	}
 	db := r.ShardManager.GetShardByIndex(shardIndex)
 	if db == nil {
@@ -103,12 +111,13 @@ func (r *PostgresRepository) GetByID(ctx context.Context, taskID uint) (*domain.
 	shardIndex, err := cache.GetTaskShard(ctx, taskID)
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
-			for _, db := range r.ShardManager.GetAllShards() {
+			for idx, db := range r.ShardManager.GetAllShards() {
 				var task persistence.Task
 				err := db.WithContext(ctx).
 					Preload("Observers").
 					First(&task, taskID).Error
 				if err == nil {
+					_ = cache.SetTaskShard(ctx, task.ID, idx)
 					return &domain.Task{
 						ID:          task.ID,
 						Title:       task.Title,
@@ -156,6 +165,30 @@ func (r *PostgresRepository) GetByID(ctx context.Context, taskID uint) (*domain.
 		CreatedAt:   task.CreatedAt,
 		UpdatedAt:   task.UpdatedAt,
 	}, nil
+}
+
+func (r *PostgresRepository) findShardIndexByTaskID(ctx context.Context, taskID uint) (int, error) {
+	for idx, db := range r.ShardManager.GetAllShards() {
+		if db == nil {
+			continue
+		}
+
+		var task persistence.Task
+		err := db.WithContext(ctx).
+			Session(&gorm.Session{Logger: glogger.Default.LogMode(glogger.Silent)}).
+			Select("id").
+			First(&task, taskID).Error
+		if err == nil {
+			return idx, nil
+		}
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			continue
+		}
+
+		return -1, err
+	}
+
+	return -1, gorm.ErrRecordNotFound
 }
 
 func (r *PostgresRepository) Update(ctx context.Context, input ports.UpdateTaskInput) (*domain.Task, error) {

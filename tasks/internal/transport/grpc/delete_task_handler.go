@@ -12,9 +12,13 @@ func (s *TaskServer) DeleteTask(ctx context.Context, req *taskpb.DeleteTaskReque
 	}
 	ok, err := s.DeleteUC.Execute(ctx, cmd)
 
-	if err != nil || !ok {
+	if err != nil {
 		return nil, err
 	}
 
-	return &taskpb.DeleteTaskResponse{Message: "Task not found"}, nil
+	if !ok {
+		return &taskpb.DeleteTaskResponse{Message: "Task not found"}, nil
+	}
+
+	return &taskpb.DeleteTaskResponse{Message: "Task deleted"}, nil
 }
