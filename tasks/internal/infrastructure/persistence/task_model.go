@@ -1,34 +1,23 @@
 package persistence
 
-import (
-	"log"
-	"time"
-
-	"gorm.io/gorm"
-)
+import "time"
 
 type Task struct {
 	// TODO change ids to int64
-	ID          uint       `gorm:"primaryKey"`
-	Title       string     `gorm:"type:varchar(255);not null"`
-	Description string     `gorm:"type:text"`
-	PerformerId uint       `gorm:"not null;index"`
-	CreatorId   uint       `gorm:"not null;index"`
-	Observers   []Observer `gorm:"foreignKey:TaskId;references:ID"`
-	Status      string     `gorm:"type:varchar(50);not null;default:'pending'"`
+	ID          uint
+	Title       string
+	Description string
+	PerformerId uint
+	CreatorId   uint
+	Observers   []Observer
+	Status      string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
-	DeletedAt   gorm.DeletedAt `gorm:"index"`
+	DeletedAt   *time.Time
 }
 
-func (t *Task) ObserverIDs(shard *gorm.DB) []uint64 {
-	if err := shard.Preload("Observers").First(t, t.ID).Error; err != nil {
-		log.Println("Error loading task with observers:", err)
-		return nil
-	}
-
+func (t *Task) ObserverIDs() []uint64 {
 	if len(t.Observers) == 0 {
-		// no observers is normal — return nil list
 		return nil
 	}
 

@@ -7,7 +7,7 @@ import (
 	"tasks/internal/infrastructure/persistence"
 	"time"
 
-	"gorm.io/gorm"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Run performs background rebalancing: for each performer_id whose shard on the ring
@@ -19,76 +19,138 @@ func Run(ctx context.Context) {
 	}
 	allShards := ShardMgr.GetAllShards()
 	for currentShardIndex, shard := range allShards {
-		migratePerformerIDsFromShard(ctx, shard, currentShardIndex, allShards)
+		migratePerformerIDsFromShard(ctx, shard, currentShardIndex)
 	}
 }
 
 // migratePerformerIDsFromShard for each distinct performer_id on the shard checks whether
 // the current shard matches the one given by the ring; if not, migrates all that
 // performer's tasks to the ring-assigned shard.
-func migratePerformerIDsFromShard(ctx context.Context, shard *gorm.DB, currentShardIndex int, allShards []*gorm.DB) {
-	var performerIDs []uint
-	err := shard.Model(&persistence.Task{}).Distinct("performer_id").Pluck("performer_id", &performerIDs).Error
+func migratePerformerIDsFromShard(ctx context.Context, shard *pgxpool.Pool, currentShardIndex int) {
+	rows, err := shard.Query(ctx, `
+		SELECT DISTINCT performer_id
+		FROM tasks
+		WHERE deleted_at IS NULL
+	`)
 	if err != nil {
 		log.Printf("[rebalance] shard %d: list performer_ids: %v", currentShardIndex, err)
 		return
 	}
+	defer rows.Close()
 
-	for _, performerID := range performerIDs {
+	for rows.Next() {
+		var performerID uint
+		if err := rows.Scan(&performerID); err != nil {
+			log.Printf("[rebalance] shard %d: scan performer_id: %v", currentShardIndex, err)
+			continue
+		}
+
 		newShardIndex := ShardMgr.GetShardByPerformerIDIndex(performerID)
 		if newShardIndex == currentShardIndex {
 			continue
 		}
-		// performer_id is now on a different shard according to the ring — migrate their tasks
+
 		newShard := ShardMgr.GetShardByIndex(newShardIndex)
 		if newShard == nil {
 			continue
 		}
-		migrateTasksByPerformer(ctx, shard, newShard, performerID, currentShardIndex, newShardIndex)
+		migrateTasksByPerformer(ctx, shard, newShard, performerID, newShardIndex)
 	}
 }
 
-func migrateTasksByPerformer(ctx context.Context, fromShard, toShard *gorm.DB, performerID uint, fromIndex, toIndex int) {
-	var tasks []persistence.Task
-	err := fromShard.Where("performer_id = ?", performerID).Preload("Observers").Find(&tasks).Error
+func migrateTasksByPerformer(ctx context.Context, fromShard, toShard *pgxpool.Pool, performerID uint, toIndex int) {
+	rows, err := fromShard.Query(ctx, `
+		SELECT id, title, description, performer_id, creator_id, status, created_at, updated_at, deleted_at
+		FROM tasks
+		WHERE performer_id = $1 AND deleted_at IS NULL
+	`, performerID)
 	if err != nil {
 		log.Printf("[rebalance] performer_id %d: list tasks: %v", performerID, err)
 		return
 	}
+	defer rows.Close()
 
-	for _, task := range tasks {
-		if err := migrateOneTask(ctx, fromShard, toShard, task, fromIndex, toIndex); err != nil {
+	for rows.Next() {
+		var task persistence.Task
+		if err := rows.Scan(
+			&task.ID,
+			&task.Title,
+			&task.Description,
+			&task.PerformerId,
+			&task.CreatorId,
+			&task.Status,
+			&task.CreatedAt,
+			&task.UpdatedAt,
+			&task.DeletedAt,
+		); err != nil {
+			log.Printf("[rebalance] performer_id %d: scan task: %v", performerID, err)
+			continue
+		}
+
+		obs, err := loadObservers(ctx, fromShard, task.ID)
+		if err != nil {
+			log.Printf("[rebalance] task %d: load observers: %v", task.ID, err)
+			continue
+		}
+		task.Observers = obs
+
+		if err := migrateOneTask(ctx, fromShard, toShard, task, toIndex); err != nil {
 			log.Printf("[rebalance] task %d: %v", task.ID, err)
 		}
 	}
 }
 
-func migrateOneTask(ctx context.Context, fromShard, toShard *gorm.DB, task persistence.Task, fromIndex, toIndex int) error {
-	// Clone task to target shard (same ID)
-	if err := toShard.Create(&task).Error; err != nil {
+func migrateOneTask(ctx context.Context, fromShard, toShard *pgxpool.Pool, task persistence.Task, toIndex int) error {
+	if _, err := toShard.Exec(ctx, `
+		INSERT INTO tasks (id, title, description, performer_id, creator_id, status, created_at, updated_at, deleted_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NULL)
+	`, task.ID, task.Title, task.Description, task.PerformerId, task.CreatorId, task.Status, task.CreatedAt); err != nil {
 		return err
 	}
-	// Create observers on target shard without old IDs (avoid PK conflicts)
+
 	for _, obs := range task.Observers {
-		newObs := persistence.Observer{UserId: obs.UserId, TaskId: task.ID}
-		if err := toShard.Create(&newObs).Error; err != nil {
+		if _, err := toShard.Exec(ctx, `
+			INSERT INTO observers (user_id, task_id, created_at, updated_at, deleted_at)
+			VALUES ($1, $2, NOW(), NOW(), NULL)
+		`, obs.UserId, task.ID); err != nil {
 			return err
 		}
 	}
-	// Remove from old shard (hard delete, not soft)
-	if err := fromShard.Unscoped().Where("task_id = ?", task.ID).Delete(&persistence.Observer{}).Error; err != nil {
+
+	if _, err := fromShard.Exec(ctx, `DELETE FROM observers WHERE task_id = $1`, task.ID); err != nil {
 		return err
 	}
-	if err := fromShard.Unscoped().Delete(&task).Error; err != nil {
+	if _, err := fromShard.Exec(ctx, `DELETE FROM tasks WHERE id = $1`, task.ID); err != nil {
 		return err
 	}
-	// Update task_id -> shard mapping in Redis
+
 	if err := cache.SetTaskShard(ctx, task.ID, toIndex); err != nil {
 		return err
 	}
-	// Invalidate task cache so next GetTask loads from the new shard
 	_ = cache.DeleteTaskCache(ctx, task.ID)
 	return nil
+}
+
+func loadObservers(ctx context.Context, db *pgxpool.Pool, taskID uint) ([]persistence.Observer, error) {
+	rows, err := db.Query(ctx, `
+		SELECT id, user_id, task_id, created_at, updated_at, deleted_at
+		FROM observers
+		WHERE task_id = $1 AND deleted_at IS NULL
+	`, taskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []persistence.Observer
+	for rows.Next() {
+		var o persistence.Observer
+		if err := rows.Scan(&o.ID, &o.UserId, &o.TaskId, &o.CreatedAt, &o.UpdatedAt, &o.DeletedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, o)
+	}
+	return out, rows.Err()
 }
 
 // RunBackground runs rebalancing in the background (e.g. after adding a shard).

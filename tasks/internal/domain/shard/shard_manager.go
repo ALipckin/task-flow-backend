@@ -1,6 +1,7 @@
 package shard
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -9,15 +10,14 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Number of virtual nodes per physical shard (100–1000 for even distribution).
 const defaultVnodesPerShard = 256
 
 type ShardManager struct {
-	shards []*gorm.DB
+	shards []*pgxpool.Pool
 	ring   *consistentRing
 	mu     sync.RWMutex
 	// round-robin when performer_id == 0 (fallback)
@@ -33,7 +33,7 @@ func InitShardManager() {
 	}
 
 	urls := strings.Split(shardURLs, ",")
-	shards := make([]*gorm.DB, 0, len(urls))
+	shards := make([]*pgxpool.Pool, 0, len(urls))
 
 	for i, url := range urls {
 		url = strings.TrimSpace(url)
@@ -41,12 +41,16 @@ func InitShardManager() {
 			continue
 		}
 
-		db, err := gorm.Open(postgres.Open(url), &gorm.Config{})
+		pool, err := pgxpool.New(context.Background(), url)
 		if err != nil {
+			log.Fatalf("Failed to create shard pool %d: %v", i, err)
+		}
+		if err := pool.Ping(context.Background()); err != nil {
+			pool.Close()
 			log.Fatalf("Failed to connect to shard %d: %v", i, err)
 		}
 
-		shards = append(shards, db)
+		shards = append(shards, pool)
 		log.Printf("Connected to shard %d", i)
 	}
 
@@ -72,7 +76,7 @@ func InitShardManager() {
 
 // GetShardByPerformerID returns the shard for performer_id (ring key: performer:{id}).
 // When performerID == 0, uses round-robin.
-func (sm *ShardManager) GetShardByPerformerID(performerID uint) *gorm.DB {
+func (sm *ShardManager) GetShardByPerformerID(performerID uint) *pgxpool.Pool {
 	idx := sm.GetShardByPerformerIDIndex(performerID)
 	return sm.GetShardByIndex(idx)
 }
@@ -101,7 +105,7 @@ func (sm *ShardManager) GetShardByPerformerIDIndex(performerID uint) int {
 }
 
 // GetShardByIndex returns the shard by index (0-based).
-func (sm *ShardManager) GetShardByIndex(index int) *gorm.DB {
+func (sm *ShardManager) GetShardByIndex(index int) *pgxpool.Pool {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 	if index < 0 || index >= len(sm.shards) {
@@ -110,10 +114,10 @@ func (sm *ShardManager) GetShardByIndex(index int) *gorm.DB {
 	return sm.shards[index]
 }
 
-func (sm *ShardManager) GetAllShards() []*gorm.DB {
+func (sm *ShardManager) GetAllShards() []*pgxpool.Pool {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
-	shards := make([]*gorm.DB, len(sm.shards))
+	shards := make([]*pgxpool.Pool, len(sm.shards))
 	copy(shards, sm.shards)
 	return shards
 }
@@ -146,7 +150,17 @@ func (sm *ShardManager) RebuildRing() {
 	log.Printf("Ring rebuilt with %d shards, %d vnodes/shard", n, vnodes)
 }
 
-func NewShardManagerForTesting(shards []*gorm.DB) *ShardManager {
+func (sm *ShardManager) Close() {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+	for _, shard := range sm.shards {
+		if shard != nil {
+			shard.Close()
+		}
+	}
+}
+
+func NewShardManagerForTesting(shards []*pgxpool.Pool) *ShardManager {
 	ring := newConsistentRing(len(shards), defaultVnodesPerShard)
 	return &ShardManager{
 		shards: shards,

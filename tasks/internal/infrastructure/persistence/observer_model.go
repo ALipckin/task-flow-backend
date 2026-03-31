@@ -1,17 +1,13 @@
 package persistence
 
-import (
-	"time"
-
-	"gorm.io/gorm"
-)
+import "time"
 
 type Observer struct {
-	ID        uint `gorm:"primaryKey"`
-	UserId    uint `gorm:"not null;index"`
-	TaskId    uint `gorm:"not null;index"`
-	Task      Task `gorm:"foreignKey:TaskId;references:ID"`
+	ID        uint
+	UserId    uint
+	TaskId    uint
+	Task      Task
 	CreatedAt time.Time
 	UpdatedAt time.Time
-	DeletedAt gorm.DeletedAt `gorm:"index"`
+	DeletedAt *time.Time
 }

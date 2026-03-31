@@ -3,8 +3,6 @@ package domain
 import (
 	"tasks/internal/infrastructure/persistence"
 	"time"
-
-	"gorm.io/gorm"
 )
 
 type Task struct {
@@ -17,7 +15,7 @@ type Task struct {
 	Status      string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
-	DeletedAt   gorm.DeletedAt
+	DeletedAt   *time.Time
 }
 
 // NewTask constructs a domain Task value from parameters.

@@ -5,8 +5,6 @@ import (
 	"errors"
 	"tasks/internal/infrastructure/cache"
 	"tasks/internal/ports"
-
-	"gorm.io/gorm"
 )
 
 type DeleteTask struct {
@@ -40,7 +38,7 @@ func (uc *DeleteTask) Execute(
 
 	task, err := uc.repo.GetByID(ctx, taskID)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if errors.Is(err, ports.ErrNotFound) {
 			return false, nil
 		}
 		return false, err

@@ -3,19 +3,22 @@ package adapters
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"tasks/internal/domain"
 	"tasks/internal/domain/shard"
 	"tasks/internal/infrastructure/cache"
 	"tasks/internal/infrastructure/persistence"
 	"tasks/internal/ports"
 	"tasks/logger"
+	"time"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
-	"gorm.io/gorm"
-	glogger "gorm.io/gorm/logger"
 )
 
-// PostgresRepository implements ports.Repository using GORM shards via shard.Manager.
+// PostgresRepository implements ports.Repository using pgxpool shards via shard.Manager.
 type PostgresRepository struct {
 	ShardManager *shard.ShardManager
 }
@@ -29,15 +32,17 @@ func (r *PostgresRepository) Save(ctx context.Context, t domain.Task, shardIndex
 	if db == nil {
 		return errors.New("shard not found")
 	}
-	p := persistence.Task{
-		ID:          t.ID,
-		Title:       t.Title,
-		Description: t.Description,
-		PerformerId: t.PerformerId,
-		CreatorId:   t.CreatorId,
-		Status:      t.Status,
+
+	_, err := db.Exec(ctx, `
+		INSERT INTO tasks (id, title, description, performer_id, creator_id, status, created_at, updated_at, deleted_at)
+		VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW(), NULL)
+	`, t.ID, t.Title, t.Description, t.PerformerId, t.CreatorId, t.Status)
+	if err != nil {
+		return err
 	}
-	return db.Create(&p).Error
+
+	_ = cache.SetTaskShard(ctx, t.ID, shardIndex)
+	return nil
 }
 
 // Find queries tasks in the specified shard index using the provided filter.
@@ -51,19 +56,44 @@ func (r *PostgresRepository) Find(ctx context.Context, filter ports.TaskFilter, 
 		return nil, errors.New("shard not found")
 	}
 
-	var models []persistence.Task
-	query := db
+	query := `
+		SELECT id, title, description, performer_id, creator_id, status, created_at, updated_at, deleted_at
+		FROM tasks
+		WHERE deleted_at IS NULL
+	`
+	args := make([]interface{}, 0, 3)
 	if filter.Title != "" {
-		query = query.Where("title = ?", filter.Title)
+		args = append(args, filter.Title)
+		query += fmt.Sprintf(" AND title = $%d", len(args))
 	}
 	if filter.CreatorID != 0 {
-		query = query.Where("creator_id = ?", filter.CreatorID)
+		args = append(args, filter.CreatorID)
+		query += fmt.Sprintf(" AND creator_id = $%d", len(args))
 	}
 	if filter.PerformerID != 0 {
-		query = query.Where("performer_id = ?", filter.PerformerID)
+		args = append(args, filter.PerformerID)
+		query += fmt.Sprintf(" AND performer_id = $%d", len(args))
 	}
 
-	if err := query.Find(&models).Error; err != nil {
+	rows, err := db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	models := make([]persistence.Task, 0)
+	for rows.Next() {
+		var m persistence.Task
+		if err := rows.Scan(&m.ID, &m.Title, &m.Description, &m.PerformerId, &m.CreatorId, &m.Status, &m.CreatedAt, &m.UpdatedAt, &m.DeletedAt); err != nil {
+			return nil, err
+		}
+		models = append(models, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if err := r.attachObservers(ctx, db, models); err != nil {
 		return nil, err
 	}
 
@@ -104,7 +134,25 @@ func (r *PostgresRepository) Delete(ctx context.Context, taskID uint) error {
 		return errors.New("shard not found")
 	}
 
-	return db.Delete(&persistence.Task{ID: taskID}, taskID).Error
+	tx, err := db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if _, err := tx.Exec(ctx, `DELETE FROM observers WHERE task_id = $1`, taskID); err != nil {
+		return err
+	}
+
+	cmd, err := tx.Exec(ctx, `DELETE FROM tasks WHERE id = $1`, taskID)
+	if err != nil {
+		return err
+	}
+	if cmd.RowsAffected() == 0 {
+		return ports.ErrNotFound
+	}
+
+	return tx.Commit(ctx)
 }
 
 func (r *PostgresRepository) GetByID(ctx context.Context, taskID uint) (*domain.Task, error) {
@@ -112,59 +160,33 @@ func (r *PostgresRepository) GetByID(ctx context.Context, taskID uint) (*domain.
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			for idx, db := range r.ShardManager.GetAllShards() {
-				var task persistence.Task
-				err := db.WithContext(ctx).
-					Preload("Observers").
-					First(&task, taskID).Error
+				task, err := r.getTaskByIDOnShard(ctx, db, taskID)
 				if err == nil {
 					_ = cache.SetTaskShard(ctx, task.ID, idx)
-					return &domain.Task{
-						ID:          task.ID,
-						Title:       task.Title,
-						Description: task.Description,
-						PerformerId: task.PerformerId,
-						CreatorId:   task.CreatorId,
-						Status:      task.Status,
-						Observers:   task.Observers,
-						CreatedAt:   task.CreatedAt,
-						UpdatedAt:   task.UpdatedAt,
-					}, nil
+					return persistenceToDomainTask(*task), nil
 				}
-				if errors.Is(err, gorm.ErrRecordNotFound) {
+				if errors.Is(err, ports.ErrNotFound) {
 					continue
 				}
 				return nil, err
 			}
-			return nil, gorm.ErrRecordNotFound // not found in any shard
+			return nil, ports.ErrNotFound
 
-		} else {
-			return nil, err // real infrastructure failure
 		}
+		return nil, err
 	}
+
 	db := r.ShardManager.GetShardByIndex(shardIndex)
 	if db == nil {
 		return nil, errors.New("shard not found")
 	}
 
-	var task persistence.Task
-
-	if err := db.WithContext(ctx).
-		Preload("Observers").
-		First(&task, taskID).Error; err != nil {
+	task, err := r.getTaskByIDOnShard(ctx, db, taskID)
+	if err != nil {
 		return nil, err
 	}
 
-	return &domain.Task{
-		ID:          task.ID,
-		Title:       task.Title,
-		Description: task.Description,
-		PerformerId: task.PerformerId,
-		CreatorId:   task.CreatorId,
-		Status:      task.Status,
-		Observers:   task.Observers,
-		CreatedAt:   task.CreatedAt,
-		UpdatedAt:   task.UpdatedAt,
-	}, nil
+	return persistenceToDomainTask(*task), nil
 }
 
 func (r *PostgresRepository) findShardIndexByTaskID(ctx context.Context, taskID uint) (int, error) {
@@ -173,40 +195,42 @@ func (r *PostgresRepository) findShardIndexByTaskID(ctx context.Context, taskID 
 			continue
 		}
 
-		var task persistence.Task
-		err := db.WithContext(ctx).
-			Session(&gorm.Session{Logger: glogger.Default.LogMode(glogger.Silent)}).
-			Select("id").
-			First(&task, taskID).Error
+		var found int
+		err := db.QueryRow(ctx, `
+			SELECT 1
+			FROM tasks
+			WHERE id = $1 AND deleted_at IS NULL
+		`, taskID).Scan(&found)
 		if err == nil {
 			return idx, nil
 		}
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if errors.Is(err, pgx.ErrNoRows) {
 			continue
 		}
-
 		return -1, err
 	}
 
-	return -1, gorm.ErrRecordNotFound
+	return -1, ports.ErrNotFound
 }
 
 func (r *PostgresRepository) Update(ctx context.Context, input ports.UpdateTaskInput) (*domain.Task, error) {
 	taskID := input.ID
 
 	currentShardIndex, err := cache.GetTaskShard(ctx, taskID)
-	var fromShard *gorm.DB
+	var fromShard *pgxpool.Pool
 	var task persistence.Task
 
 	if err == nil {
 		fromShard = r.ShardManager.GetShardByIndex(currentShardIndex)
 		if fromShard != nil {
-			if err := fromShard.First(&task, taskID).Error; err != nil {
-				if errors.Is(err, gorm.ErrRecordNotFound) {
-					return nil, gorm.ErrRecordNotFound
+			t, getErr := r.getTaskPersistenceByID(ctx, fromShard, taskID)
+			if getErr != nil {
+				if errors.Is(getErr, ports.ErrNotFound) {
+					return nil, ports.ErrNotFound
 				}
-				return nil, err
+				return nil, getErr
 			}
+			task = *t
 		}
 	} else {
 		if cache.IsNilError(err) {
@@ -224,37 +248,33 @@ func (r *PostgresRepository) Update(ctx context.Context, input ports.UpdateTaskI
 				continue
 			}
 
-			var t persistence.Task
-			if err := sh.Session(&gorm.Session{Logger: glogger.Default.LogMode(glogger.Silent)}).First(&t, taskID).Error; err != nil {
-				if errors.Is(err, gorm.ErrRecordNotFound) {
+			t, getErr := r.getTaskPersistenceByID(ctx, sh, taskID)
+			if getErr != nil {
+				if errors.Is(getErr, ports.ErrNotFound) {
 					continue
 				}
-				return nil, err
+				return nil, getErr
 			}
 
 			fromShard = sh
 			currentShardIndex = idx
-			task = t
+			task = *t
 			found = true
 			break
 		}
 		if !found {
-			return nil, gorm.ErrRecordNotFound
+			return nil, ports.ErrNotFound
 		}
 	}
 
 	oldPerformerID := task.PerformerId
-
-	if err := fromShard.Where("task_id = ?", task.ID).Delete(&persistence.Observer{}).Error; err != nil {
-		return nil, err
-	}
-
 	task.Title = input.Title
 	task.Description = input.Description
 	task.PerformerId = input.PerformerID
 	task.CreatorId = input.CreatorID
 	task.Observers = observersFromUintIDs(input.ObserverIDs)
 	task.Status = input.Status
+	task.UpdatedAt = time.Now()
 
 	newShardIndex := r.ShardManager.GetShardByPerformerIDIndex(task.PerformerId)
 	needMigrate := oldPerformerID != task.PerformerId && newShardIndex != currentShardIndex
@@ -269,15 +289,35 @@ func (r *PostgresRepository) Update(ctx context.Context, input ports.UpdateTaskI
 			return nil, err
 		}
 	} else {
-		if err := fromShard.Save(&task).Error; err != nil {
+		tx, err := fromShard.Begin(ctx)
+		if err != nil {
+			return nil, err
+		}
+		defer func() { _ = tx.Rollback(ctx) }()
+
+		if _, err := tx.Exec(ctx, `
+			UPDATE tasks
+			SET title = $1, description = $2, performer_id = $3, creator_id = $4, status = $5, updated_at = NOW()
+			WHERE id = $6
+		`, task.Title, task.Description, task.PerformerId, task.CreatorId, task.Status, task.ID); err != nil {
+			return nil, err
+		}
+
+		if _, err := tx.Exec(ctx, `DELETE FROM observers WHERE task_id = $1`, task.ID); err != nil {
 			return nil, err
 		}
 
 		for _, obs := range task.Observers {
-			newObs := persistence.Observer{UserId: obs.UserId, TaskId: task.ID}
-			if err := fromShard.Create(&newObs).Error; err != nil {
+			if _, err := tx.Exec(ctx, `
+				INSERT INTO observers (user_id, task_id, created_at, updated_at, deleted_at)
+				VALUES ($1, $2, NOW(), NOW(), NULL)
+			`, obs.UserId, task.ID); err != nil {
 				return nil, err
 			}
+		}
+
+		if err := tx.Commit(ctx); err != nil {
+			return nil, err
 		}
 	}
 
@@ -291,25 +331,50 @@ func (r *PostgresRepository) Update(ctx context.Context, input ports.UpdateTaskI
 func migrateTaskToShard(
 	ctx context.Context,
 	task *persistence.Task,
-	fromShard *gorm.DB,
-	toShard *gorm.DB,
+	fromShard *pgxpool.Pool,
+	toShard *pgxpool.Pool,
 	toIndex int,
 ) error {
-	if err := toShard.Create(task).Error; err != nil {
+	toTx, err := toShard.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = toTx.Rollback(ctx) }()
+
+	if _, err := toTx.Exec(ctx, `
+		INSERT INTO tasks (id, title, description, performer_id, creator_id, status, created_at, updated_at, deleted_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NULL)
+	`, task.ID, task.Title, task.Description, task.PerformerId, task.CreatorId, task.Status, task.CreatedAt); err != nil {
 		return err
 	}
 
 	for _, obs := range task.Observers {
-		newObs := persistence.Observer{UserId: obs.UserId, TaskId: task.ID}
-		if err := toShard.Create(&newObs).Error; err != nil {
+		if _, err := toTx.Exec(ctx, `
+			INSERT INTO observers (user_id, task_id, created_at, updated_at, deleted_at)
+			VALUES ($1, $2, NOW(), NOW(), NULL)
+		`, obs.UserId, task.ID); err != nil {
 			return err
 		}
 	}
 
-	if err := fromShard.Unscoped().Where("task_id = ?", task.ID).Delete(&persistence.Observer{}).Error; err != nil {
+	if err := toTx.Commit(ctx); err != nil {
 		return err
 	}
-	if err := fromShard.Unscoped().Delete(task).Error; err != nil {
+
+	fromTx, err := fromShard.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = fromTx.Rollback(ctx) }()
+
+	if _, err := fromTx.Exec(ctx, `DELETE FROM observers WHERE task_id = $1`, task.ID); err != nil {
+		return err
+	}
+	if _, err := fromTx.Exec(ctx, `DELETE FROM tasks WHERE id = $1`, task.ID); err != nil {
+		return err
+	}
+
+	if err := fromTx.Commit(ctx); err != nil {
 		return err
 	}
 
@@ -346,4 +411,99 @@ func persistenceToDomainTask(task persistence.Task) *domain.Task {
 		UpdatedAt:   task.UpdatedAt,
 		DeletedAt:   task.DeletedAt,
 	}
+}
+
+func (r *PostgresRepository) getTaskByIDOnShard(ctx context.Context, db *pgxpool.Pool, taskID uint) (*persistence.Task, error) {
+	t, err := r.getTaskPersistenceByID(ctx, db, taskID)
+	if err != nil {
+		return nil, err
+	}
+	return t, nil
+}
+
+func (r *PostgresRepository) getTaskPersistenceByID(ctx context.Context, db *pgxpool.Pool, taskID uint) (*persistence.Task, error) {
+	var task persistence.Task
+	err := db.QueryRow(ctx, `
+		SELECT id, title, description, performer_id, creator_id, status, created_at, updated_at, deleted_at
+		FROM tasks
+		WHERE id = $1 AND deleted_at IS NULL
+	`, taskID).Scan(&task.ID, &task.Title, &task.Description, &task.PerformerId, &task.CreatorId, &task.Status, &task.CreatedAt, &task.UpdatedAt, &task.DeletedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ports.ErrNotFound
+		}
+		return nil, err
+	}
+
+	obs, err := loadObservers(ctx, db, task.ID)
+	if err != nil {
+		return nil, err
+	}
+	task.Observers = obs
+	return &task, nil
+}
+
+func (r *PostgresRepository) attachObservers(ctx context.Context, db *pgxpool.Pool, tasks []persistence.Task) error {
+	if len(tasks) == 0 {
+		return nil
+	}
+
+	ids := make([]string, 0, len(tasks))
+	args := make([]interface{}, 0, len(tasks))
+	for i, t := range tasks {
+		ids = append(ids, fmt.Sprintf("$%d", i+1))
+		args = append(args, t.ID)
+	}
+
+	query := `
+		SELECT id, user_id, task_id, created_at, updated_at, deleted_at
+		FROM observers
+		WHERE deleted_at IS NULL AND task_id IN (` + strings.Join(ids, ",") + `)
+	`
+	rows, err := db.Query(ctx, query, args...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	byTask := make(map[uint][]persistence.Observer, len(tasks))
+	for rows.Next() {
+		var o persistence.Observer
+		if err := rows.Scan(&o.ID, &o.UserId, &o.TaskId, &o.CreatedAt, &o.UpdatedAt, &o.DeletedAt); err != nil {
+			return err
+		}
+		byTask[o.TaskId] = append(byTask[o.TaskId], o)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	for i := range tasks {
+		tasks[i].Observers = byTask[tasks[i].ID]
+	}
+
+	return nil
+}
+
+func loadObservers(ctx context.Context, db *pgxpool.Pool, taskID uint) ([]persistence.Observer, error) {
+	rows, err := db.Query(ctx, `
+		SELECT id, user_id, task_id, created_at, updated_at, deleted_at
+		FROM observers
+		WHERE task_id = $1 AND deleted_at IS NULL
+	`, taskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]persistence.Observer, 0)
+	for rows.Next() {
+		var o persistence.Observer
+		if err := rows.Scan(&o.ID, &o.UserId, &o.TaskId, &o.CreatedAt, &o.UpdatedAt, &o.DeletedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, o)
+	}
+
+	return out, rows.Err()
 }

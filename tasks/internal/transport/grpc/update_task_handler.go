@@ -3,12 +3,12 @@ package grpc
 import (
 	"context"
 	"errors"
+	"tasks/internal/ports"
 	"tasks/internal/use_case"
 	"tasks/proto/taskpb"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"gorm.io/gorm"
 )
 
 func (s *TaskServer) UpdateTask(ctx context.Context, req *taskpb.UpdateTaskRequest) (*taskpb.TaskResponse, error) {
@@ -24,7 +24,7 @@ func (s *TaskServer) UpdateTask(ctx context.Context, req *taskpb.UpdateTaskReque
 
 	task, err := s.UpdateUC.Execute(ctx, cmd)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if errors.Is(err, ports.ErrNotFound) {
 			return nil, status.Errorf(codes.NotFound, "task %d not found", req.Id)
 		}
 		return nil, err
