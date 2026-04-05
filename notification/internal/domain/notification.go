@@ -7,13 +7,13 @@ type User struct {
 }
 
 type NotificationPayload struct {
-	Event       string
-	Title       string
-	Description string
+	Event       string `json:"event"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
 }
 
 type OutboundMessage struct {
-	UserID  int
-	Email   string
-	Message string
+	UserID  int    `json:"user_id"`
+	Email   string `json:"email"`
+	Message string `json:"message"`
 }
