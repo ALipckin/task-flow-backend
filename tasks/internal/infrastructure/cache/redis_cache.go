@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"strconv"
 	"time"
 
@@ -21,9 +20,12 @@ const (
 	taskShardKeyFmt  = "task:shard:%d"
 )
 
-func InitRedisFromEnv() {
-	url := os.Getenv("REDIS_URL")
-	opts, err := redis.ParseURL(url)
+// InitRedis initializes the Redis client using the provided URL.
+func InitRedis(redisURL string) {
+	if redisURL == "" {
+		panic("REDIS_URL not set")
+	}
+	opts, err := redis.ParseURL(redisURL)
 	if err != nil {
 		panic(err)
 	}

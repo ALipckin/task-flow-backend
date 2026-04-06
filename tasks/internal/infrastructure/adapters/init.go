@@ -2,6 +2,7 @@ package adapters
 
 import (
 	"log"
+	"tasks/internal/config"
 	"tasks/internal/domain/shard"
 	"tasks/internal/infrastructure/cache"
 	"tasks/internal/infrastructure/kafke"
@@ -9,19 +10,14 @@ import (
 
 // InitializeInfrastructure centralizes previous initializer calls.
 // It returns the initialized ShardManager (shard.ShardMgr) for callers that need it.
-// NOTE: existing initializer functions may call log.Fatal/panic on failure; this function
-// preserves that behavior and also returns the shard manager for DI.
-func InitializeInfrastructure() *shard.ShardManager {
-	// Initialize shard manager (DB shards)
-	shard.InitShardManager()
+func InitializeInfrastructure(cfg *config.Config) *shard.ShardManager {
+	if cfg == nil {
+		log.Fatalf("config is nil")
+	}
 
-	// Initialize cache (redis)
-	cache.InitRedisFromEnv()
-
-	// Initialize kafka producer
-	kafke.InitProducer()
-
-	// run migrations/sync for shards if available
+	shard.InitShardManager(cfg.DBShardURLs, cfg.VNodesPerShard)
+	cache.InitRedis(cfg.RedisURL)
+	kafke.InitProducer(cfg.KafkaBrokers)
 	shard.SyncDatabaseForShards()
 
 	if shard.ShardMgr == nil {

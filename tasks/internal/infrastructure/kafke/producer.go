@@ -2,6 +2,7 @@ package kafke
 
 import (
 	"log"
+	"strings"
 	"time"
 
 	"github.com/IBM/sarama"
@@ -9,16 +10,17 @@ import (
 
 var KafkaProducer sarama.SyncProducer
 
-// InitProducer initializes the Kafka producer
-func InitProducer() {
+// InitProducer initializes the Kafka producer with provided broker list.
+func InitProducer(brokers []string) {
+	brokers = normalizeBrokers(brokers)
+	if len(brokers) == 0 {
+		brokers = []string{"kafka:9092"}
+	}
+
 	config := sarama.NewConfig()
-	config.Producer.Return.Successes = true // Wait for confirmation of successful sending
+	config.Producer.Return.Successes = true
 	config.Producer.Timeout = 5 * time.Second
 
-	// Kafka broker address
-	brokers := []string{"kafka:9092"} // Using the service name from docker-compose
-
-	// Create a Kafka producer
 	producer, err := sarama.NewSyncProducer(brokers, config)
 	if err != nil {
 		log.Fatalf("Error creating Kafka producer: %v", err)
@@ -28,7 +30,7 @@ func InitProducer() {
 	log.Println("Kafka producer initialized successfully")
 }
 
-// SendMessage sends a message to Kafka
+// SendMessage sends a message to Kafka.
 func SendMessage(topic, message string) error {
 	msg := &sarama.ProducerMessage{
 		Topic: topic,
@@ -51,7 +53,6 @@ func SendMessage(topic, message string) error {
 
 func SendMessageToKafka(message []byte) error {
 	topic := "task_events"
-	// Build Kafka message
 	msg := &sarama.ProducerMessage{
 		Topic: topic,
 		Value: sarama.ByteEncoder(message),
@@ -70,7 +71,7 @@ func SendMessageToKafka(message []byte) error {
 	return nil
 }
 
-// CloseProducer closes the package producer
+// CloseProducer closes the package producer.
 func CloseProducer() error {
 	if KafkaProducer == nil {
 		return nil
@@ -80,4 +81,16 @@ func CloseProducer() error {
 	}
 	KafkaProducer = nil
 	return nil
+}
+
+func normalizeBrokers(brokers []string) []string {
+	result := make([]string, 0, len(brokers))
+	for _, broker := range brokers {
+		item := strings.TrimSpace(broker)
+		if item == "" {
+			continue
+		}
+		result = append(result, item)
+	}
+	return result
 }

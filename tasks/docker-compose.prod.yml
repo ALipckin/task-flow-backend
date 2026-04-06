@@ -9,9 +9,10 @@ services:
     ports:
       - "${APP_PORT}:${GRPC_PORT}"
     environment:
-      - GRPC_PORT=${GRPC_PORT}
-      - DB_SHARD_URLS=${DB_SHARD_URLS}
-      - REDIS_URL=${REDIS_URL}
+      GRPC_PORT: ${GRPC_PORT}
+      DB_SHARD_URLS: ${DB_SHARD_URLS}
+      REDIS_URL: ${REDIS_URL}
+      VNODES_PER_SHARD: ${VNODES_PER_SHARD}
     restart: unless-stopped
     networks:
       - task-network
