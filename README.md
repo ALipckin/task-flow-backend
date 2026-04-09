@@ -13,7 +13,8 @@ flowchart TD
     C -->|Events| K
     D -->|Events| K
 
-    A --> B["Auth Service"]
+    A --> |RestAPI| B["Auth Service"]
+    A -->|gRPC| C["Task Storage Service"]
 
     K --> C["Task Storage Service"]
     K --> D["Notify Service"]
