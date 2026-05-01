@@ -1,11 +1,13 @@
 package adapters
 
 import (
+	"context"
 	"log"
 	"tasks/internal/config"
 	"tasks/internal/domain/shard"
 	"tasks/internal/infrastructure/cache"
 	"tasks/internal/infrastructure/kafke"
+	"tasks/internal/infrastructure/migrations"
 )
 
 // InitializeInfrastructure centralizes previous initializer calls.
@@ -18,7 +20,9 @@ func InitializeInfrastructure(cfg *config.Config) *shard.ShardManager {
 	shard.InitShardManager(cfg.DBShardURLs, cfg.VNodesPerShard)
 	cache.InitRedis(cfg.RedisURL)
 	kafke.InitProducer(cfg.KafkaBrokers)
-	shard.SyncDatabaseForShards()
+	if err := migrations.SyncDatabaseForShards(context.Background(), shard.ShardMgr); err != nil {
+		log.Fatalf("failed to migrate shards: %v", err)
+	}
 
 	if shard.ShardMgr == nil {
 		log.Fatalf("shard manager not initialized")
