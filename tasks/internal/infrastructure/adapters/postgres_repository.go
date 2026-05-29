@@ -99,18 +99,7 @@ func (r *PostgresRepository) Find(ctx context.Context, filter ports.TaskFilter, 
 
 	result := make([]domain.Task, 0, len(models))
 	for _, m := range models {
-		result = append(result, domain.Task{
-			ID:          m.ID,
-			Title:       m.Title,
-			Description: m.Description,
-			PerformerId: m.PerformerId,
-			CreatorId:   m.CreatorId,
-			Observers:   m.Observers,
-			Status:      m.Status,
-			CreatedAt:   m.CreatedAt,
-			UpdatedAt:   m.UpdatedAt,
-			DeletedAt:   m.DeletedAt,
-		})
+		result = append(result, persistence.TaskToDomain(m))
 	}
 
 	return result, nil
@@ -163,7 +152,8 @@ func (r *PostgresRepository) GetByID(ctx context.Context, taskID uint) (*domain.
 				task, err := r.getTaskByIDOnShard(ctx, db, taskID)
 				if err == nil {
 					_ = cache.SetTaskShard(ctx, task.ID, idx)
-					return persistenceToDomainTask(*task), nil
+					dt := persistence.TaskToDomain(*task)
+					return &dt, nil
 				}
 				if errors.Is(err, ports.ErrNotFound) {
 					continue
@@ -186,7 +176,8 @@ func (r *PostgresRepository) GetByID(ctx context.Context, taskID uint) (*domain.
 		return nil, err
 	}
 
-	return persistenceToDomainTask(*task), nil
+	dt := persistence.TaskToDomain(*task)
+	return &dt, nil
 }
 
 func (r *PostgresRepository) findShardIndexByTaskID(ctx context.Context, taskID uint) (int, error) {
@@ -272,7 +263,7 @@ func (r *PostgresRepository) Update(ctx context.Context, input ports.UpdateTaskI
 	task.Description = input.Description
 	task.PerformerId = input.PerformerID
 	task.CreatorId = input.CreatorID
-	task.Observers = observersFromUintIDs(input.ObserverIDs)
+	task.Observers = persistence.ObserversFromUserIDs(input.ObserverIDs)
 	task.Status = input.Status
 	task.UpdatedAt = time.Now()
 
@@ -325,7 +316,8 @@ func (r *PostgresRepository) Update(ctx context.Context, input ports.UpdateTaskI
 		logger.Warn(ctx, "cache delete failed", logger.ZapError(err))
 	}
 
-	return persistenceToDomainTask(task), nil
+	dt := persistence.TaskToDomain(task)
+	return &dt, nil
 }
 
 func migrateTaskToShard(
@@ -384,33 +376,6 @@ func migrateTaskToShard(
 	_ = cache.DeleteTaskCache(ctx, task.ID)
 
 	return nil
-}
-
-func observersFromUintIDs(ids []uint) []persistence.Observer {
-	if len(ids) == 0 {
-		return nil
-	}
-
-	observers := make([]persistence.Observer, len(ids))
-	for i := range ids {
-		observers[i] = persistence.Observer{UserId: ids[i]}
-	}
-	return observers
-}
-
-func persistenceToDomainTask(task persistence.Task) *domain.Task {
-	return &domain.Task{
-		ID:          task.ID,
-		Title:       task.Title,
-		Description: task.Description,
-		PerformerId: task.PerformerId,
-		CreatorId:   task.CreatorId,
-		Status:      task.Status,
-		Observers:   task.Observers,
-		CreatedAt:   task.CreatedAt,
-		UpdatedAt:   task.UpdatedAt,
-		DeletedAt:   task.DeletedAt,
-	}
 }
 
 func (r *PostgresRepository) getTaskByIDOnShard(ctx context.Context, db *pgxpool.Pool, taskID uint) (*persistence.Task, error) {

@@ -1,8 +1,9 @@
-package shard
+package sharding
 
 import (
 	"context"
 	"log"
+	"tasks/internal/domain/shard"
 	"tasks/internal/infrastructure/cache"
 	"tasks/internal/infrastructure/persistence"
 	"time"
@@ -14,20 +15,17 @@ import (
 // changed after adding a new shard, migrates their tasks to the new shard.
 // Postgres is unaware; the app copies data and updates the mapping in Redis.
 func Run(ctx context.Context) {
-	if ShardMgr == nil {
+	if shard.ShardMgr == nil {
 		return
 	}
-	allShards := ShardMgr.GetAllShards()
-	for currentShardIndex, shard := range allShards {
-		migratePerformerIDsFromShard(ctx, shard, currentShardIndex)
+	allShards := shard.ShardMgr.GetAllShards()
+	for currentShardIndex, sh := range allShards {
+		migratePerformerIDsFromShard(ctx, sh, currentShardIndex)
 	}
 }
 
-// migratePerformerIDsFromShard for each distinct performer_id on the shard checks whether
-// the current shard matches the one given by the ring; if not, migrates all that
-// performer's tasks to the ring-assigned shard.
-func migratePerformerIDsFromShard(ctx context.Context, shard *pgxpool.Pool, currentShardIndex int) {
-	rows, err := shard.Query(ctx, `
+func migratePerformerIDsFromShard(ctx context.Context, sh *pgxpool.Pool, currentShardIndex int) {
+	rows, err := sh.Query(ctx, `
 		SELECT DISTINCT performer_id
 		FROM tasks
 		WHERE deleted_at IS NULL
@@ -45,16 +43,16 @@ func migratePerformerIDsFromShard(ctx context.Context, shard *pgxpool.Pool, curr
 			continue
 		}
 
-		newShardIndex := ShardMgr.GetShardByPerformerIDIndex(performerID)
+		newShardIndex := shard.ShardMgr.GetShardByPerformerIDIndex(performerID)
 		if newShardIndex == currentShardIndex {
 			continue
 		}
 
-		newShard := ShardMgr.GetShardByIndex(newShardIndex)
+		newShard := shard.ShardMgr.GetShardByIndex(newShardIndex)
 		if newShard == nil {
 			continue
 		}
-		migrateTasksByPerformer(ctx, shard, newShard, performerID, newShardIndex)
+		migrateTasksByPerformer(ctx, sh, newShard, performerID, newShardIndex)
 	}
 }
 
@@ -154,8 +152,6 @@ func loadObservers(ctx context.Context, db *pgxpool.Pool, taskID uint) ([]persis
 }
 
 // RunBackground runs rebalancing in the background (e.g. after adding a shard).
-// Call after updating config (new DB_SHARD_URLS) and restart, or when adding a shard
-// dynamically — then call RebuildRing() first, then RunBackground().
 func RunBackground(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()

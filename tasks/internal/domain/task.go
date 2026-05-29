@@ -1,9 +1,10 @@
 package domain
 
-import (
-	"tasks/internal/infrastructure/persistence"
-	"time"
-)
+import "time"
+
+type Observer struct {
+	UserID uint
+}
 
 type Task struct {
 	ID          uint
@@ -11,14 +12,13 @@ type Task struct {
 	Description string
 	PerformerId uint
 	CreatorId   uint
-	Observers   []persistence.Observer
+	Observers   []Observer
 	Status      string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	DeletedAt   *time.Time
 }
 
-// NewTask constructs a domain Task value from parameters.
 func NewTask(id uint, title, description string, creatorID, performerID uint) Task {
 	return Task{
 		ID:          id,
@@ -28,4 +28,28 @@ func NewTask(id uint, title, description string, creatorID, performerID uint) Ta
 		CreatorId:   creatorID,
 		Status:      "new",
 	}
+}
+
+func (t Task) ObserverUserIDs() []uint64 {
+	if len(t.Observers) == 0 {
+		return nil
+	}
+
+	ids := make([]uint64, len(t.Observers))
+	for i, o := range t.Observers {
+		ids[i] = uint64(o.UserID)
+	}
+	return ids
+}
+
+func ObserversFromUserIDs(ids []uint64) []Observer {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	observers := make([]Observer, len(ids))
+	for i, id := range ids {
+		observers[i] = Observer{UserID: uint(id)}
+	}
+	return observers
 }

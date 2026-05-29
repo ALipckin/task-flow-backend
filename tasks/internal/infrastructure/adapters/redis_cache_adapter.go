@@ -12,15 +12,7 @@ type RedisCacheAdapter struct{}
 func NewRedisCacheAdapter() *RedisCacheAdapter { return &RedisCacheAdapter{} }
 
 func (a *RedisCacheAdapter) SetTask(ctx context.Context, task domain.Task) error {
-	p := persistence.Task{
-		ID:          task.ID,
-		Title:       task.Title,
-		Description: task.Description,
-		PerformerId: task.PerformerId,
-		CreatorId:   task.CreatorId,
-		Status:      task.Status,
-	}
-	return cache.SetTask(ctx, p)
+	return cache.SetTask(ctx, persistence.TaskFromDomain(task))
 }
 
 func (a *RedisCacheAdapter) GetTask(ctx context.Context, taskID uint) (domain.Task, error) {
@@ -28,12 +20,5 @@ func (a *RedisCacheAdapter) GetTask(ctx context.Context, taskID uint) (domain.Ta
 	if err != nil {
 		return domain.Task{}, err
 	}
-	return domain.Task{
-		ID:          p.ID,
-		Title:       p.Title,
-		Description: p.Description,
-		PerformerId: p.PerformerId,
-		CreatorId:   p.CreatorId,
-		Status:      p.Status,
-	}, nil
+	return persistence.TaskToDomain(*p), nil
 }

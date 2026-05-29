@@ -2,7 +2,6 @@ package grpc
 
 import (
 	"tasks/internal/domain"
-	"tasks/internal/infrastructure/persistence"
 	"tasks/proto/taskpb"
 	"time"
 
@@ -20,7 +19,7 @@ func ToProto(task *domain.Task) *taskpb.Task {
 		Description: task.Description,
 		PerformerId: uint64(task.PerformerId),
 		CreatorId:   uint64(task.CreatorId),
-		ObserverIds: observersToIDs(task.Observers),
+		ObserverIds: task.ObserverUserIDs(),
 		Status:      task.Status,
 		CreatedAt:   timestamppb.New(task.CreatedAt),
 		UpdatedAt:   timestamppb.New(task.UpdatedAt),
@@ -38,7 +37,7 @@ func ToDomain(pb *taskpb.Task) *domain.Task {
 		Description: pb.Description,
 		PerformerId: uint(pb.PerformerId),
 		CreatorId:   uint(pb.CreatorId),
-		Observers:   idsToObservers(pb.ObserverIds),
+		Observers:   domain.ObserversFromUserIDs(pb.ObserverIds),
 		Status:      pb.Status,
 		CreatedAt:   timestampToTime(pb.CreatedAt),
 		UpdatedAt:   timestampToTime(pb.UpdatedAt),
@@ -67,34 +66,6 @@ func uint64SliceToUint(src []uint64) []uint {
 		res[i] = uint(v)
 	}
 	return res
-}
-
-func observersToIDs(observers []persistence.Observer) []uint64 {
-	if len(observers) == 0 {
-		return nil
-	}
-
-	ids := make([]uint64, len(observers))
-	for i, o := range observers {
-		ids[i] = uint64(o.UserId) // предполагаем, что там UserID
-	}
-
-	return ids
-}
-
-func idsToObservers(ids []uint64) []persistence.Observer {
-	if len(ids) == 0 {
-		return nil
-	}
-
-	observers := make([]persistence.Observer, len(ids))
-	for i, id := range ids {
-		observers[i] = persistence.Observer{
-			UserId: uint(id),
-		}
-	}
-
-	return observers
 }
 
 func timestampToTime(ts *timestamppb.Timestamp) time.Time {

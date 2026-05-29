@@ -6,7 +6,6 @@ import (
 	"log"
 	"tasks/internal/domain"
 	"tasks/internal/infrastructure/kafke"
-	"tasks/internal/infrastructure/persistence"
 )
 
 type KafkaProducerAdapter struct{}
@@ -103,14 +102,14 @@ func (a *KafkaProducerAdapter) PublishUpdated(ctx context.Context, task domain.T
 	return nil
 }
 
-func observerIDs(observers []persistence.Observer) []uint {
+func observerIDs(observers []domain.Observer) []uint {
 	if len(observers) == 0 {
 		return nil
 	}
 
 	ids := make([]uint, len(observers))
 	for i := range observers {
-		ids[i] = observers[i].UserId
+		ids[i] = observers[i].UserID
 	}
 	return ids
 }
