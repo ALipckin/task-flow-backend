@@ -4,7 +4,7 @@ import (
 	"context"
 	"tasks/internal/application/ports/out"
 	"tasks/internal/domain"
-	"tasks/internal/domain/shard"
+	"tasks/internal/infrastructure/sharding/shard"
 )
 
 type GetTasks struct {

@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"tasks/internal/domain/shard"
+	"tasks/internal/infrastructure/sharding/shard"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )

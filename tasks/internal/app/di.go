@@ -5,8 +5,8 @@ import (
 	"tasks/internal/application/ports/in/queries"
 	"tasks/internal/application/ports/out"
 	"tasks/internal/config"
-	"tasks/internal/domain/shard"
 	"tasks/internal/infrastructure/adapters"
+	"tasks/internal/infrastructure/sharding/shard"
 	transportgrpc "tasks/internal/transport/grpc"
 	grpcmiddleware "tasks/internal/transport/grpc/middleware"
 

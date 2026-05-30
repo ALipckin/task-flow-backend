@@ -3,9 +3,9 @@ package sharding
 import (
 	"context"
 	"log"
-	"tasks/internal/domain/shard"
 	"tasks/internal/infrastructure/cache"
 	"tasks/internal/infrastructure/persistence"
+	"tasks/internal/infrastructure/sharding/shard"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"

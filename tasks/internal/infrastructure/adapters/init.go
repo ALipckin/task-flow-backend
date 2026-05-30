@@ -4,10 +4,10 @@ import (
 	"context"
 	"log"
 	"tasks/internal/config"
-	"tasks/internal/domain/shard"
 	"tasks/internal/infrastructure/cache"
 	"tasks/internal/infrastructure/kafke"
 	"tasks/internal/infrastructure/migrations"
+	"tasks/internal/infrastructure/sharding/shard"
 )
 
 // InitializeInfrastructure centralizes previous initializer calls.

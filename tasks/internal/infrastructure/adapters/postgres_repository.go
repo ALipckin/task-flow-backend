@@ -7,9 +7,9 @@ import (
 	"strings"
 	"tasks/internal/application/ports/out"
 	"tasks/internal/domain"
-	"tasks/internal/domain/shard"
 	"tasks/internal/infrastructure/cache"
 	"tasks/internal/infrastructure/persistence"
+	"tasks/internal/infrastructure/sharding/shard"
 	"tasks/logger"
 	"time"
 
