@@ -1,23 +1,23 @@
-package use_case
+package commands
 
 import (
 	"context"
 	"errors"
+	"tasks/internal/application/ports/out"
 	"tasks/internal/infrastructure/cache"
-	"tasks/internal/ports"
 )
 
 type DeleteTask struct {
-	repo     ports.Repository
-	cache    ports.Cache
-	producer ports.EventProducer
+	repo     out.Repository
+	cache    out.Cache
+	producer out.EventProducer
 }
 
 // NewDeleteTask constructs DeleteTask use-case with its dependencies.
 func NewDeleteTask(
-	repo ports.Repository,
-	cache ports.Cache,
-	producer ports.EventProducer,
+	repo out.Repository,
+	cache out.Cache,
+	producer out.EventProducer,
 ) *DeleteTask {
 	return &DeleteTask{
 		repo:     repo,
@@ -38,7 +38,7 @@ func (uc *DeleteTask) Execute(
 
 	task, err := uc.repo.GetByID(ctx, taskID)
 	if err != nil {
-		if errors.Is(err, ports.ErrNotFound) {
+		if errors.Is(err, out.ErrNotFound) {
 			return false, nil
 		}
 		return false, err

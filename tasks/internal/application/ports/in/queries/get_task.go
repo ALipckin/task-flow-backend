@@ -1,23 +1,23 @@
-package use_case
+package queries
 
 import (
 	"context"
+	"tasks/internal/application/ports/out"
 	"tasks/internal/domain"
-	"tasks/internal/ports"
 	"tasks/logger"
 )
 
 type GetTask struct {
-	repo     ports.Repository
-	cache    ports.Cache
-	producer ports.EventProducer
+	repo     out.Repository
+	cache    out.Cache
+	producer out.EventProducer
 }
 
 // NewGetTask constructs GetTask use-case with its dependencies.
 func NewGetTask(
-	repo ports.Repository,
-	cache ports.Cache,
-	producer ports.EventProducer,
+	repo out.Repository,
+	cache out.Cache,
+	producer out.EventProducer,
 ) *GetTask {
 	return &GetTask{
 		repo:     repo,

@@ -1,13 +1,14 @@
 package app
 
 import (
+	"tasks/internal/application/ports/in/commands"
+	"tasks/internal/application/ports/in/queries"
+	"tasks/internal/application/ports/out"
 	"tasks/internal/config"
 	"tasks/internal/domain/shard"
 	"tasks/internal/infrastructure/adapters"
-	"tasks/internal/ports"
 	transportgrpc "tasks/internal/transport/grpc"
 	grpcmiddleware "tasks/internal/transport/grpc/middleware"
-	"tasks/internal/use_case"
 
 	"google.golang.org/grpc"
 )
@@ -18,16 +19,16 @@ type Container struct {
 	cfg      *config.Config
 	shardMgr *shard.ShardManager
 
-	repo      ports.Repository
-	cache     ports.Cache
-	producer  ports.EventProducer
-	allocator ports.IDAllocator
+	repo      out.Repository
+	cache     out.Cache
+	producer  out.EventProducer
+	allocator out.IDAllocator
 
-	createTaskUC *use_case.CreateTask
-	getTaskUC    *use_case.GetTask
-	getTasksUC   *use_case.GetTasks
-	deleteTaskUC *use_case.DeleteTask
-	updateTaskUC *use_case.UpdateTask
+	createTaskUC *commands.CreateTask
+	getTaskUC    *queries.GetTask
+	getTasksUC   *queries.GetTasks
+	deleteTaskUC *commands.DeleteTask
+	updateTaskUC *commands.UpdateTask
 
 	taskServer *transportgrpc.TaskServer
 	grpcServer *grpc.Server
@@ -57,7 +58,7 @@ func (c *Container) Infrastructure() *shard.ShardManager {
 }
 
 // Repository returns the task repository implementation.
-func (c *Container) Repository() ports.Repository {
+func (c *Container) Repository() out.Repository {
 	if c.repo == nil {
 		c.repo = adapters.NewPostgresRepository(c.Infrastructure())
 	}
@@ -66,7 +67,7 @@ func (c *Container) Repository() ports.Repository {
 }
 
 // Cache returns the cache adapter implementation.
-func (c *Container) Cache() ports.Cache {
+func (c *Container) Cache() out.Cache {
 	if c.cache == nil {
 		_ = c.Infrastructure()
 		c.cache = adapters.NewRedisCacheAdapter()
@@ -76,7 +77,7 @@ func (c *Container) Cache() ports.Cache {
 }
 
 // Producer returns the event producer implementation.
-func (c *Container) Producer() ports.EventProducer {
+func (c *Container) Producer() out.EventProducer {
 	if c.producer == nil {
 		_ = c.Infrastructure()
 		c.producer = adapters.NewKafkaProducerAdapter()
@@ -86,7 +87,7 @@ func (c *Container) Producer() ports.EventProducer {
 }
 
 // Allocator returns the ID allocator implementation.
-func (c *Container) Allocator() ports.IDAllocator {
+func (c *Container) Allocator() out.IDAllocator {
 	if c.allocator == nil {
 		_ = c.Infrastructure()
 		c.allocator = adapters.NewRedisIDAllocator()
@@ -96,9 +97,9 @@ func (c *Container) Allocator() ports.IDAllocator {
 }
 
 // CreateTaskUC returns CreateTask use-case.
-func (c *Container) CreateTaskUC() *use_case.CreateTask {
+func (c *Container) CreateTaskUC() *commands.CreateTask {
 	if c.createTaskUC == nil {
-		c.createTaskUC = use_case.NewCreateTask(
+		c.createTaskUC = commands.NewCreateTask(
 			c.Repository(),
 			c.Cache(),
 			c.Producer(),
@@ -111,9 +112,9 @@ func (c *Container) CreateTaskUC() *use_case.CreateTask {
 }
 
 // GetTaskUC returns GetTask use-case.
-func (c *Container) GetTaskUC() *use_case.GetTask {
+func (c *Container) GetTaskUC() *queries.GetTask {
 	if c.getTaskUC == nil {
-		c.getTaskUC = use_case.NewGetTask(
+		c.getTaskUC = queries.NewGetTask(
 			c.Repository(),
 			c.Cache(),
 			c.Producer(),
@@ -124,9 +125,9 @@ func (c *Container) GetTaskUC() *use_case.GetTask {
 }
 
 // GetTasksUC returns GetTasks use-case.
-func (c *Container) GetTasksUC() *use_case.GetTasks {
+func (c *Container) GetTasksUC() *queries.GetTasks {
 	if c.getTasksUC == nil {
-		c.getTasksUC = use_case.NewGetTasks(
+		c.getTasksUC = queries.NewGetTasks(
 			c.Repository(),
 			c.Infrastructure(),
 			c.Allocator(),
@@ -137,9 +138,9 @@ func (c *Container) GetTasksUC() *use_case.GetTasks {
 }
 
 // DeleteTaskUC returns DeleteTask use-case.
-func (c *Container) DeleteTaskUC() *use_case.DeleteTask {
+func (c *Container) DeleteTaskUC() *commands.DeleteTask {
 	if c.deleteTaskUC == nil {
-		c.deleteTaskUC = use_case.NewDeleteTask(
+		c.deleteTaskUC = commands.NewDeleteTask(
 			c.Repository(),
 			c.Cache(),
 			c.Producer(),
@@ -150,9 +151,9 @@ func (c *Container) DeleteTaskUC() *use_case.DeleteTask {
 }
 
 // UpdateTaskUC returns UpdateTask use-case.
-func (c *Container) UpdateTaskUC() *use_case.UpdateTask {
+func (c *Container) UpdateTaskUC() *commands.UpdateTask {
 	if c.updateTaskUC == nil {
-		c.updateTaskUC = use_case.NewUpdateTask(
+		c.updateTaskUC = commands.NewUpdateTask(
 			c.Repository(),
 			c.Producer(),
 		)

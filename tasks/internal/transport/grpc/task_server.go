@@ -1,15 +1,16 @@
 package grpc
 
 import (
-	"tasks/internal/use_case"
+	"tasks/internal/application/ports/in/commands"
+	"tasks/internal/application/ports/in/queries"
 	"tasks/proto/taskpb"
 )
 
 type TaskServer struct {
 	taskpb.UnimplementedTaskServiceServer
-	CreateUC   *use_case.CreateTask
-	GetTaskUC  *use_case.GetTask
-	GetTasksUC *use_case.GetTasks
-	DeleteUC   *use_case.DeleteTask
-	UpdateUC   *use_case.UpdateTask
+	CreateUC   *commands.CreateTask
+	GetTaskUC  *queries.GetTask
+	GetTasksUC *queries.GetTasks
+	DeleteUC   *commands.DeleteTask
+	UpdateUC   *commands.UpdateTask
 }

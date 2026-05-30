@@ -1,23 +1,23 @@
-package use_case
+package queries
 
 import (
 	"context"
+	"tasks/internal/application/ports/out"
 	"tasks/internal/domain"
 	"tasks/internal/domain/shard"
-	"tasks/internal/ports"
 )
 
 type GetTasks struct {
-	repo      ports.Repository
+	repo      out.Repository
 	sharder   *shard.ShardManager
-	allocator ports.IDAllocator
+	allocator out.IDAllocator
 }
 
 // NewGetTasks constructs GetTasks use-case with its dependencies.
 func NewGetTasks(
-	repo ports.Repository,
+	repo out.Repository,
 	sharder *shard.ShardManager,
-	allocator ports.IDAllocator,
+	allocator out.IDAllocator,
 ) *GetTasks {
 	return &GetTasks{
 		repo:      repo,
@@ -34,7 +34,7 @@ type GetTasksCommand struct {
 
 // Execute returns tasks matching the command filter across all shards.
 func (uc *GetTasks) Execute(ctx context.Context, cmd GetTasksCommand) ([]domain.Task, error) {
-	filter := ports.TaskFilter{
+	filter := out.TaskFilter{
 		Title:       cmd.Title,
 		CreatorID:   cmd.CreatorID,
 		PerformerID: cmd.PerformerID,

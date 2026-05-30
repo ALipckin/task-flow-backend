@@ -3,8 +3,8 @@ package grpc
 import (
 	"context"
 	"errors"
-	"tasks/internal/ports"
-	"tasks/internal/use_case"
+	"tasks/internal/application/ports/in/commands"
+	"tasks/internal/application/ports/out"
 	"tasks/proto/taskpb"
 
 	"google.golang.org/grpc/codes"
@@ -12,7 +12,7 @@ import (
 )
 
 func (s *TaskServer) UpdateTask(ctx context.Context, req *taskpb.UpdateTaskRequest) (*taskpb.TaskResponse, error) {
-	cmd := use_case.UpdateTaskCommand{
+	cmd := commands.UpdateTaskCommand{
 		ID:          req.Id,
 		Title:       req.Title,
 		Description: req.Description,
@@ -24,7 +24,7 @@ func (s *TaskServer) UpdateTask(ctx context.Context, req *taskpb.UpdateTaskReque
 
 	task, err := s.UpdateUC.Execute(ctx, cmd)
 	if err != nil {
-		if errors.Is(err, ports.ErrNotFound) {
+		if errors.Is(err, out.ErrNotFound) {
 			return nil, status.Errorf(codes.NotFound, "task %d not found", req.Id)
 		}
 		return nil, err

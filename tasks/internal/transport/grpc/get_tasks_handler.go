@@ -2,7 +2,7 @@ package grpc
 
 import (
 	"context"
-	"tasks/internal/use_case"
+	"tasks/internal/application/ports/in/queries"
 	"tasks/proto/taskpb"
 )
 
@@ -12,7 +12,7 @@ func (s *TaskServer) GetTasks(
 	req *taskpb.GetTasksRequest,
 ) (*taskpb.GetTasksResponse, error) {
 
-	cmd := use_case.GetTasksCommand{
+	cmd := queries.GetTasksCommand{
 		Title:       req.Title,
 		PerformerID: uint(req.PerformerId),
 		CreatorID:   uint(req.CreatorId),

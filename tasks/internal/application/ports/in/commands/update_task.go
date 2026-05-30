@@ -1,19 +1,19 @@
-package use_case
+package commands
 
 import (
 	"context"
+	"tasks/internal/application/ports/out"
 	"tasks/internal/domain"
-	"tasks/internal/ports"
 )
 
 type UpdateTask struct {
-	repo     ports.Repository
-	producer ports.EventProducer
+	repo     out.Repository
+	producer out.EventProducer
 }
 
 func NewUpdateTask(
-	repo ports.Repository,
-	producer ports.EventProducer,
+	repo out.Repository,
+	producer out.EventProducer,
 ) *UpdateTask {
 	return &UpdateTask{
 		repo:     repo,
@@ -32,7 +32,7 @@ type UpdateTaskCommand struct {
 }
 
 func (uc *UpdateTask) Execute(ctx context.Context, cmd UpdateTaskCommand) (domain.Task, error) {
-	input := ports.UpdateTaskInput{
+	input := out.UpdateTaskInput{
 		ID:          uint(cmd.ID),
 		Title:       cmd.Title,
 		Description: cmd.Description,

@@ -1,22 +1,22 @@
-package use_case
+package commands
 
 import (
 	"context"
+	"tasks/internal/application/ports/out"
 	"tasks/internal/domain"
 	"tasks/internal/domain/shard"
-	"tasks/internal/ports"
 )
 
 type CreateTask struct {
-	repo      ports.Repository
-	cache     ports.Cache
-	producer  ports.EventProducer
+	repo      out.Repository
+	cache     out.Cache
+	producer  out.EventProducer
 	sharder   *shard.ShardManager
-	allocator ports.IDAllocator
+	allocator out.IDAllocator
 }
 
 // NewCreateTask constructs CreateTask use-case with its dependencies.
-func NewCreateTask(repo ports.Repository, cache ports.Cache, producer ports.EventProducer, sharder *shard.ShardManager, allocator ports.IDAllocator) *CreateTask {
+func NewCreateTask(repo out.Repository, cache out.Cache, producer out.EventProducer, sharder *shard.ShardManager, allocator out.IDAllocator) *CreateTask {
 	return &CreateTask{repo: repo, cache: cache, producer: producer, sharder: sharder, allocator: allocator}
 }
 

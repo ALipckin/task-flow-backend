@@ -5,11 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"tasks/internal/application/ports/out"
 	"tasks/internal/domain"
 	"tasks/internal/domain/shard"
 	"tasks/internal/infrastructure/cache"
 	"tasks/internal/infrastructure/persistence"
-	"tasks/internal/ports"
 	"tasks/logger"
 	"time"
 
@@ -47,7 +47,7 @@ func (r *PostgresRepository) Save(ctx context.Context, t domain.Task, shardIndex
 
 // Find queries tasks in the specified shard index using the provided filter.
 // If shardIndex is negative, returns an error (caller should iterate shards itself).
-func (r *PostgresRepository) Find(ctx context.Context, filter ports.TaskFilter, shardIndex int) ([]domain.Task, error) {
+func (r *PostgresRepository) Find(ctx context.Context, filter out.TaskFilter, shardIndex int) ([]domain.Task, error) {
 	if shardIndex < 0 {
 		return nil, errors.New("shard index required")
 	}
@@ -138,7 +138,7 @@ func (r *PostgresRepository) Delete(ctx context.Context, taskID uint) error {
 		return err
 	}
 	if cmd.RowsAffected() == 0 {
-		return ports.ErrNotFound
+		return out.ErrNotFound
 	}
 
 	return tx.Commit(ctx)
@@ -155,12 +155,12 @@ func (r *PostgresRepository) GetByID(ctx context.Context, taskID uint) (*domain.
 					dt := persistence.TaskToDomain(*task)
 					return &dt, nil
 				}
-				if errors.Is(err, ports.ErrNotFound) {
+				if errors.Is(err, out.ErrNotFound) {
 					continue
 				}
 				return nil, err
 			}
-			return nil, ports.ErrNotFound
+			return nil, out.ErrNotFound
 
 		}
 		return nil, err
@@ -201,10 +201,10 @@ func (r *PostgresRepository) findShardIndexByTaskID(ctx context.Context, taskID 
 		return -1, err
 	}
 
-	return -1, ports.ErrNotFound
+	return -1, out.ErrNotFound
 }
 
-func (r *PostgresRepository) Update(ctx context.Context, input ports.UpdateTaskInput) (*domain.Task, error) {
+func (r *PostgresRepository) Update(ctx context.Context, input out.UpdateTaskInput) (*domain.Task, error) {
 	taskID := input.ID
 
 	currentShardIndex, err := cache.GetTaskShard(ctx, taskID)
@@ -216,8 +216,8 @@ func (r *PostgresRepository) Update(ctx context.Context, input ports.UpdateTaskI
 		if fromShard != nil {
 			t, getErr := r.getTaskPersistenceByID(ctx, fromShard, taskID)
 			if getErr != nil {
-				if errors.Is(getErr, ports.ErrNotFound) {
-					return nil, ports.ErrNotFound
+				if errors.Is(getErr, out.ErrNotFound) {
+					return nil, out.ErrNotFound
 				}
 				return nil, getErr
 			}
@@ -241,7 +241,7 @@ func (r *PostgresRepository) Update(ctx context.Context, input ports.UpdateTaskI
 
 			t, getErr := r.getTaskPersistenceByID(ctx, sh, taskID)
 			if getErr != nil {
-				if errors.Is(getErr, ports.ErrNotFound) {
+				if errors.Is(getErr, out.ErrNotFound) {
 					continue
 				}
 				return nil, getErr
@@ -254,7 +254,7 @@ func (r *PostgresRepository) Update(ctx context.Context, input ports.UpdateTaskI
 			break
 		}
 		if !found {
-			return nil, ports.ErrNotFound
+			return nil, out.ErrNotFound
 		}
 	}
 
@@ -395,7 +395,7 @@ func (r *PostgresRepository) getTaskPersistenceByID(ctx context.Context, db *pgx
 	`, taskID).Scan(&task.ID, &task.Title, &task.Description, &task.PerformerId, &task.CreatorId, &task.Status, &task.CreatedAt, &task.UpdatedAt, &task.DeletedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ports.ErrNotFound
+			return nil, out.ErrNotFound
 		}
 		return nil, err
 	}

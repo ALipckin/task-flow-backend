@@ -2,12 +2,12 @@ package grpc
 
 import (
 	"context"
-	"tasks/internal/use_case"
+	"tasks/internal/application/ports/in/commands"
 	"tasks/proto/taskpb"
 )
 
 func (s *TaskServer) DeleteTask(ctx context.Context, req *taskpb.DeleteTaskRequest) (*taskpb.DeleteTaskResponse, error) {
-	cmd := use_case.DeleteTaskCommand{
+	cmd := commands.DeleteTaskCommand{
 		ID: req.Id,
 	}
 	ok, err := s.DeleteUC.Execute(ctx, cmd)
