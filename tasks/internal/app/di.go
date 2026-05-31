@@ -4,7 +4,7 @@ import (
 	"tasks/internal/application/ports/in/commands"
 	"tasks/internal/application/ports/in/queries"
 	"tasks/internal/application/ports/out"
-	"tasks/internal/application/services"
+	"tasks/internal/application/use_cases"
 	"tasks/internal/config"
 	"tasks/internal/infrastructure/adapters"
 	"tasks/internal/infrastructure/sharding/shard"
@@ -25,11 +25,11 @@ type Container struct {
 	producer  out.EventProducer
 	allocator out.IDAllocator
 
-	createTaskUC *services.CreateTask
-	getTaskUC    *services.GetTask
-	getTasksUC   *services.GetTasks
-	deleteTaskUC *services.DeleteTask
-	updateTaskUC *services.UpdateTask
+	createTaskUC *use_cases.CreateTask
+	getTaskUC    *use_cases.GetTask
+	getTasksUC   *use_cases.GetTasks
+	deleteTaskUC *use_cases.DeleteTask
+	updateTaskUC *use_cases.UpdateTask
 
 	taskServer *transportgrpc.TaskServer
 	grpcServer *grpc.Server
@@ -100,7 +100,7 @@ func (c *Container) Allocator() out.IDAllocator {
 // CreateTaskUC returns CreateTask use-case.
 func (c *Container) CreateTaskUC() commands.CreateTaskHandler {
 	if c.createTaskUC == nil {
-		c.createTaskUC = services.NewCreateTask(
+		c.createTaskUC = use_cases.NewCreateTask(
 			c.Repository(),
 			c.Cache(),
 			c.Producer(),
@@ -115,7 +115,7 @@ func (c *Container) CreateTaskUC() commands.CreateTaskHandler {
 // GetTaskUC returns GetTask use-case.
 func (c *Container) GetTaskUC() queries.GetTaskHandler {
 	if c.getTaskUC == nil {
-		c.getTaskUC = services.NewGetTask(
+		c.getTaskUC = use_cases.NewGetTask(
 			c.Repository(),
 			c.Cache(),
 			c.Producer(),
@@ -128,7 +128,7 @@ func (c *Container) GetTaskUC() queries.GetTaskHandler {
 // GetTasksUC returns GetTasks use-case.
 func (c *Container) GetTasksUC() queries.GetTasksHandler {
 	if c.getTasksUC == nil {
-		c.getTasksUC = services.NewGetTasks(
+		c.getTasksUC = use_cases.NewGetTasks(
 			c.Repository(),
 			c.Infrastructure(),
 			c.Allocator(),
@@ -141,7 +141,7 @@ func (c *Container) GetTasksUC() queries.GetTasksHandler {
 // DeleteTaskUC returns DeleteTask use-case.
 func (c *Container) DeleteTaskUC() commands.DeleteTaskHandler {
 	if c.deleteTaskUC == nil {
-		c.deleteTaskUC = services.NewDeleteTask(
+		c.deleteTaskUC = use_cases.NewDeleteTask(
 			c.Repository(),
 			c.Cache(),
 			c.Producer(),
@@ -154,7 +154,7 @@ func (c *Container) DeleteTaskUC() commands.DeleteTaskHandler {
 // UpdateTaskUC returns UpdateTask use-case.
 func (c *Container) UpdateTaskUC() commands.UpdateTaskHandler {
 	if c.updateTaskUC == nil {
-		c.updateTaskUC = services.NewUpdateTask(
+		c.updateTaskUC = use_cases.NewUpdateTask(
 			c.Repository(),
 			c.Producer(),
 		)

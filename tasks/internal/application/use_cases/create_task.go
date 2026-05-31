@@ -1,4 +1,4 @@
-package services
+package use_cases
 
 import (
 	"context"
