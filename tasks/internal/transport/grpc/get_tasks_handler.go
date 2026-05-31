@@ -12,7 +12,7 @@ func (s *TaskServer) GetTasks(
 	req *taskpb.GetTasksRequest,
 ) (*taskpb.GetTasksResponse, error) {
 
-	cmd := queries.GetTasksCommand{
+	cmd := queries.GetTasksQuery{
 		Title:       req.Title,
 		PerformerID: uint(req.PerformerId),
 		CreatorID:   uint(req.CreatorId),

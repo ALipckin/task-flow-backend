@@ -8,9 +8,9 @@ import (
 
 type TaskServer struct {
 	taskpb.UnimplementedTaskServiceServer
-	CreateUC   *commands.CreateTask
-	GetTaskUC  *queries.GetTask
-	GetTasksUC *queries.GetTasks
-	DeleteUC   *commands.DeleteTask
-	UpdateUC   *commands.UpdateTask
+	CreateUC   commands.CreateTaskHandler
+	GetTaskUC  queries.GetTaskHandler
+	GetTasksUC queries.GetTasksHandler
+	DeleteUC   commands.DeleteTaskHandler
+	UpdateUC   commands.UpdateTaskHandler
 }

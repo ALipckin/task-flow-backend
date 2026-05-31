@@ -4,6 +4,7 @@ import (
 	"tasks/internal/application/ports/in/commands"
 	"tasks/internal/application/ports/in/queries"
 	"tasks/internal/application/ports/out"
+	"tasks/internal/application/services"
 	"tasks/internal/config"
 	"tasks/internal/infrastructure/adapters"
 	"tasks/internal/infrastructure/sharding/shard"
@@ -24,11 +25,11 @@ type Container struct {
 	producer  out.EventProducer
 	allocator out.IDAllocator
 
-	createTaskUC *commands.CreateTask
-	getTaskUC    *queries.GetTask
-	getTasksUC   *queries.GetTasks
-	deleteTaskUC *commands.DeleteTask
-	updateTaskUC *commands.UpdateTask
+	createTaskUC *services.CreateTask
+	getTaskUC    *services.GetTask
+	getTasksUC   *services.GetTasks
+	deleteTaskUC *services.DeleteTask
+	updateTaskUC *services.UpdateTask
 
 	taskServer *transportgrpc.TaskServer
 	grpcServer *grpc.Server
@@ -97,9 +98,9 @@ func (c *Container) Allocator() out.IDAllocator {
 }
 
 // CreateTaskUC returns CreateTask use-case.
-func (c *Container) CreateTaskUC() *commands.CreateTask {
+func (c *Container) CreateTaskUC() commands.CreateTaskHandler {
 	if c.createTaskUC == nil {
-		c.createTaskUC = commands.NewCreateTask(
+		c.createTaskUC = services.NewCreateTask(
 			c.Repository(),
 			c.Cache(),
 			c.Producer(),
@@ -112,9 +113,9 @@ func (c *Container) CreateTaskUC() *commands.CreateTask {
 }
 
 // GetTaskUC returns GetTask use-case.
-func (c *Container) GetTaskUC() *queries.GetTask {
+func (c *Container) GetTaskUC() queries.GetTaskHandler {
 	if c.getTaskUC == nil {
-		c.getTaskUC = queries.NewGetTask(
+		c.getTaskUC = services.NewGetTask(
 			c.Repository(),
 			c.Cache(),
 			c.Producer(),
@@ -125,9 +126,9 @@ func (c *Container) GetTaskUC() *queries.GetTask {
 }
 
 // GetTasksUC returns GetTasks use-case.
-func (c *Container) GetTasksUC() *queries.GetTasks {
+func (c *Container) GetTasksUC() queries.GetTasksHandler {
 	if c.getTasksUC == nil {
-		c.getTasksUC = queries.NewGetTasks(
+		c.getTasksUC = services.NewGetTasks(
 			c.Repository(),
 			c.Infrastructure(),
 			c.Allocator(),
@@ -138,9 +139,9 @@ func (c *Container) GetTasksUC() *queries.GetTasks {
 }
 
 // DeleteTaskUC returns DeleteTask use-case.
-func (c *Container) DeleteTaskUC() *commands.DeleteTask {
+func (c *Container) DeleteTaskUC() commands.DeleteTaskHandler {
 	if c.deleteTaskUC == nil {
-		c.deleteTaskUC = commands.NewDeleteTask(
+		c.deleteTaskUC = services.NewDeleteTask(
 			c.Repository(),
 			c.Cache(),
 			c.Producer(),
@@ -151,9 +152,9 @@ func (c *Container) DeleteTaskUC() *commands.DeleteTask {
 }
 
 // UpdateTaskUC returns UpdateTask use-case.
-func (c *Container) UpdateTaskUC() *commands.UpdateTask {
+func (c *Container) UpdateTaskUC() commands.UpdateTaskHandler {
 	if c.updateTaskUC == nil {
-		c.updateTaskUC = commands.NewUpdateTask(
+		c.updateTaskUC = services.NewUpdateTask(
 			c.Repository(),
 			c.Producer(),
 		)
