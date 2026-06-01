@@ -5,7 +5,6 @@ import (
 	"errors"
 	"tasks/internal/application/ports/in/commands"
 	"tasks/internal/application/ports/out"
-	"tasks/internal/infrastructure/cache"
 )
 
 type DeleteTask struct {
@@ -45,8 +44,8 @@ func (uc *DeleteTask) Execute(
 		return false, err
 	}
 
-	_ = cache.DeleteTaskCache(ctx, taskID)
-	_ = cache.DelTaskShard(ctx, taskID)
+	_ = uc.cache.DeleteTask(ctx, taskID)
+	_ = uc.cache.DeleteShardMapping(ctx, taskID)
 	// If we have err here, we return true, because task is already deleted, but log the error for debugging
 	if err := uc.producer.PublishDeleted(ctx, *task); err != nil {
 		return true, err

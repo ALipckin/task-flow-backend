@@ -22,3 +22,11 @@ func (a *RedisCacheAdapter) GetTask(ctx context.Context, taskID uint) (domain.Ta
 	}
 	return persistence.TaskToDomain(*p), nil
 }
+
+func (a *RedisCacheAdapter) DeleteTask(ctx context.Context, taskID uint) error {
+	return cache.DeleteTaskCache(ctx, taskID)
+}
+
+func (a *RedisCacheAdapter) DeleteShardMapping(ctx context.Context, taskID uint) error {
+	return cache.DelTaskShard(ctx, taskID)
+}
