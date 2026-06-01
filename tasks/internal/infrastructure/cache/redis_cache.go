@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"strconv"
 	"time"
 
@@ -31,9 +32,22 @@ func InitRedis(redisURL string) {
 	}
 
 	redisClient = redis.NewClient(opts)
-	if _, err := redisClient.Ping(context.Background()).Result(); err != nil {
-		panic(err)
+
+	const attempts = 10
+	const delay = 2 * time.Second
+	var lastErr error
+	for i := 1; i <= attempts; i++ {
+		if _, lastErr = redisClient.Ping(context.Background()).Result(); lastErr == nil {
+			return
+		}
+		if i < attempts {
+			time.Sleep(delay)
+		}
 	}
+	log.Fatalf(
+		"redis unreachable at %s after %d attempts: %v (ensure redis is on task-network: docker compose up -d redis --force-recreate)",
+		redisURL, attempts, lastErr,
+	)
 }
 
 func CloseRedis() error {

@@ -24,12 +24,9 @@ type UpdateTaskInput struct {
 }
 
 // Repository represents persistence operations required by use-cases.
-// Save stores a domain.Task into the given shard index (application chooses shard DB instance).
 type Repository interface {
-	Save(ctx context.Context, task domain.Task, shardIndex int) error
-	// Find returns tasks matching the filter from the specified shard index.
-	// If shardIndex is negative, caller may interpret it as "search all shards" (adapter-specific).
-	Find(ctx context.Context, filter TaskFilter, shardIndex int) ([]domain.Task, error)
+	Save(ctx context.Context, task domain.Task) error
+	Find(ctx context.Context, filter TaskFilter) ([]domain.Task, error)
 	Delete(ctx context.Context, taskID uint) error
 	GetByID(ctx context.Context, taskID uint) (*domain.Task, error)
 	Update(ctx context.Context, input UpdateTaskInput) (*domain.Task, error)

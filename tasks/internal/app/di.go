@@ -61,7 +61,8 @@ func (c *Container) Infrastructure() *shard.ShardManager {
 // Repository returns the task repository implementation.
 func (c *Container) Repository() out.Repository {
 	if c.repo == nil {
-		c.repo = adapters.NewPostgresRepository(c.Infrastructure())
+		sm := c.Infrastructure()
+		c.repo = adapters.NewPostgresRepository(sm, adapters.NewShardRouter(sm))
 	}
 
 	return c.repo
@@ -104,7 +105,6 @@ func (c *Container) CreateTaskUC() commands.CreateTaskHandler {
 			c.Repository(),
 			c.Cache(),
 			c.Producer(),
-			c.Infrastructure(),
 			c.Allocator(),
 		)
 	}
@@ -128,11 +128,7 @@ func (c *Container) GetTaskUC() queries.GetTaskHandler {
 // GetTasksUC returns GetTasks use-case.
 func (c *Container) GetTasksUC() queries.GetTasksHandler {
 	if c.getTasksUC == nil {
-		c.getTasksUC = use_cases.NewGetTasks(
-			c.Repository(),
-			c.Infrastructure(),
-			c.Allocator(),
-		)
+		c.getTasksUC = use_cases.NewGetTasks(c.Repository())
 	}
 
 	return c.getTasksUC

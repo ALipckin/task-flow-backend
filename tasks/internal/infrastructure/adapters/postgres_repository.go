@@ -21,13 +21,15 @@ import (
 // PostgresRepository implements ports.Repository using pgxpool shards via shard.Manager.
 type PostgresRepository struct {
 	ShardManager *shard.ShardManager
+	Router       out.ShardRouter
 }
 
-func NewPostgresRepository(sm *shard.ShardManager) *PostgresRepository {
-	return &PostgresRepository{ShardManager: sm}
+func NewPostgresRepository(sm *shard.ShardManager, router out.ShardRouter) *PostgresRepository {
+	return &PostgresRepository{ShardManager: sm, Router: router}
 }
 
-func (r *PostgresRepository) Save(ctx context.Context, t domain.Task, shardIndex int) error {
+func (r *PostgresRepository) Save(ctx context.Context, t domain.Task) error {
+	shardIndex := r.Router.Resolve(t.PerformerId)
 	db := r.ShardManager.GetShardByIndex(shardIndex)
 	if db == nil {
 		return errors.New("shard not found")
@@ -45,17 +47,22 @@ func (r *PostgresRepository) Save(ctx context.Context, t domain.Task, shardIndex
 	return nil
 }
 
-// Find queries tasks in the specified shard index using the provided filter.
-// If shardIndex is negative, returns an error (caller should iterate shards itself).
-func (r *PostgresRepository) Find(ctx context.Context, filter out.TaskFilter, shardIndex int) ([]domain.Task, error) {
-	if shardIndex < 0 {
-		return nil, errors.New("shard index required")
+func (r *PostgresRepository) Find(ctx context.Context, filter out.TaskFilter) ([]domain.Task, error) {
+	var all []domain.Task
+	for _, db := range r.ShardManager.GetAllShards() {
+		if db == nil {
+			continue
+		}
+		tasks, err := r.findOnShard(ctx, db, filter)
+		if err != nil {
+			continue
+		}
+		all = append(all, tasks...)
 	}
-	db := r.ShardManager.GetShardByIndex(shardIndex)
-	if db == nil {
-		return nil, errors.New("shard not found")
-	}
+	return all, nil
+}
 
+func (r *PostgresRepository) findOnShard(ctx context.Context, db *pgxpool.Pool, filter out.TaskFilter) ([]domain.Task, error) {
 	query := `
 		SELECT id, title, description, performer_id, creator_id, status, created_at, updated_at, deleted_at
 		FROM tasks
@@ -267,7 +274,7 @@ func (r *PostgresRepository) Update(ctx context.Context, input out.UpdateTaskInp
 	task.Status = input.Status
 	task.UpdatedAt = time.Now()
 
-	newShardIndex := r.ShardManager.GetShardByPerformerIDIndex(task.PerformerId)
+	newShardIndex := r.Router.Resolve(task.PerformerId)
 	needMigrate := oldPerformerID != task.PerformerId && newShardIndex != currentShardIndex
 
 	if needMigrate {
