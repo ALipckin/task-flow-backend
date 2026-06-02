@@ -3,7 +3,7 @@ package sharding
 import (
 	"context"
 	"log"
-	"tasks/internal/infrastructure/cache"
+	"tasks/internal/application/ports/out"
 	"tasks/internal/infrastructure/persistence"
 	"tasks/internal/infrastructure/sharding/shard"
 	"time"
@@ -11,20 +11,33 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// Rebalancer migrates tasks between shards and keeps the shard index in sync.
+type Rebalancer struct {
+	shardIndex out.TaskShardIndex
+	cache      out.Cache
+}
+
+func NewRebalancer(shardIndex out.TaskShardIndex, cache out.Cache) *Rebalancer {
+	return &Rebalancer{
+		shardIndex: shardIndex,
+		cache:      cache,
+	}
+}
+
 // Run performs background rebalancing: for each performer_id whose shard on the ring
 // changed after adding a new shard, migrates their tasks to the new shard.
 // Postgres is unaware; the app copies data and updates the mapping in Redis.
-func Run(ctx context.Context) {
+func (r *Rebalancer) Run(ctx context.Context) {
 	if shard.ShardMgr == nil {
 		return
 	}
 	allShards := shard.ShardMgr.GetAllShards()
 	for currentShardIndex, sh := range allShards {
-		migratePerformerIDsFromShard(ctx, sh, currentShardIndex)
+		r.migratePerformerIDsFromShard(ctx, sh, currentShardIndex)
 	}
 }
 
-func migratePerformerIDsFromShard(ctx context.Context, sh *pgxpool.Pool, currentShardIndex int) {
+func (r *Rebalancer) migratePerformerIDsFromShard(ctx context.Context, sh *pgxpool.Pool, currentShardIndex int) {
 	rows, err := sh.Query(ctx, `
 		SELECT DISTINCT performer_id
 		FROM tasks
@@ -52,11 +65,11 @@ func migratePerformerIDsFromShard(ctx context.Context, sh *pgxpool.Pool, current
 		if newShard == nil {
 			continue
 		}
-		migrateTasksByPerformer(ctx, sh, newShard, performerID, newShardIndex)
+		r.migrateTasksByPerformer(ctx, sh, newShard, performerID, newShardIndex)
 	}
 }
 
-func migrateTasksByPerformer(ctx context.Context, fromShard, toShard *pgxpool.Pool, performerID uint, toIndex int) {
+func (r *Rebalancer) migrateTasksByPerformer(ctx context.Context, fromShard, toShard *pgxpool.Pool, performerID uint, toIndex int) {
 	rows, err := fromShard.Query(ctx, `
 		SELECT id, title, description, performer_id, creator_id, status, created_at, updated_at, deleted_at
 		FROM tasks
@@ -92,13 +105,13 @@ func migrateTasksByPerformer(ctx context.Context, fromShard, toShard *pgxpool.Po
 		}
 		task.Observers = obs
 
-		if err := migrateOneTask(ctx, fromShard, toShard, task, toIndex); err != nil {
+		if err := r.migrateOneTask(ctx, fromShard, toShard, task, toIndex); err != nil {
 			log.Printf("[rebalance] task %d: %v", task.ID, err)
 		}
 	}
 }
 
-func migrateOneTask(ctx context.Context, fromShard, toShard *pgxpool.Pool, task persistence.Task, toIndex int) error {
+func (r *Rebalancer) migrateOneTask(ctx context.Context, fromShard, toShard *pgxpool.Pool, task persistence.Task, toIndex int) error {
 	if _, err := toShard.Exec(ctx, `
 		INSERT INTO tasks (id, title, description, performer_id, creator_id, status, created_at, updated_at, deleted_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NULL)
@@ -122,10 +135,10 @@ func migrateOneTask(ctx context.Context, fromShard, toShard *pgxpool.Pool, task 
 		return err
 	}
 
-	if err := cache.SetTaskShard(ctx, task.ID, toIndex); err != nil {
+	if err := r.shardIndex.Set(ctx, task.ID, toIndex); err != nil {
 		return err
 	}
-	_ = cache.DeleteTaskCache(ctx, task.ID)
+	_ = r.cache.DeleteTask(ctx, task.ID)
 	return nil
 }
 
@@ -152,7 +165,7 @@ func loadObservers(ctx context.Context, db *pgxpool.Pool, taskID uint) ([]persis
 }
 
 // RunBackground runs rebalancing in the background (e.g. after adding a shard).
-func RunBackground(ctx context.Context, interval time.Duration) {
+func (r *Rebalancer) RunBackground(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
@@ -160,7 +173,7 @@ func RunBackground(ctx context.Context, interval time.Duration) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			Run(ctx)
+			r.Run(ctx)
 		}
 	}
 }

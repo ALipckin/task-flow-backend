@@ -8,21 +8,24 @@ import (
 )
 
 type DeleteTask struct {
-	repo     out.Repository
-	cache    out.Cache
-	producer out.EventProducer
+	repo       out.Repository
+	cache      out.Cache
+	shardIndex out.TaskShardIndex
+	producer   out.EventProducer
 }
 
 // NewDeleteTask constructs DeleteTask use-case with its dependencies.
 func NewDeleteTask(
 	repo out.Repository,
 	cache out.Cache,
+	shardIndex out.TaskShardIndex,
 	producer out.EventProducer,
 ) *DeleteTask {
 	return &DeleteTask{
-		repo:     repo,
-		cache:    cache,
-		producer: producer,
+		repo:       repo,
+		cache:      cache,
+		shardIndex: shardIndex,
+		producer:   producer,
 	}
 }
 
@@ -45,7 +48,7 @@ func (uc *DeleteTask) Execute(
 	}
 
 	_ = uc.cache.DeleteTask(ctx, taskID)
-	_ = uc.cache.DeleteShardMapping(ctx, taskID)
+	_ = uc.shardIndex.Delete(ctx, taskID)
 	// If we have err here, we return true, because task is already deleted, but log the error for debugging
 	if err := uc.producer.PublishDeleted(ctx, *task); err != nil {
 		return true, err

@@ -20,10 +20,11 @@ type Container struct {
 	cfg      *config.Config
 	shardMgr *shard.ShardManager
 
-	repo      out.Repository
-	cache     out.Cache
-	producer  out.EventProducer
-	allocator out.IDAllocator
+	repo       out.Repository
+	cache      out.Cache
+	shardIndex out.TaskShardIndex
+	producer   out.EventProducer
+	allocator  out.IDAllocator
 
 	createTaskUC *use_cases.CreateTask
 	getTaskUC    *use_cases.GetTask
@@ -62,10 +63,25 @@ func (c *Container) Infrastructure() *shard.ShardManager {
 func (c *Container) Repository() out.Repository {
 	if c.repo == nil {
 		sm := c.Infrastructure()
-		c.repo = adapters.NewPostgresRepository(sm, adapters.NewShardRouter(sm))
+		c.repo = adapters.NewPostgresRepository(
+			sm,
+			adapters.NewShardRouter(sm),
+			c.TaskShardIndex(),
+			c.Cache(),
+		)
 	}
 
 	return c.repo
+}
+
+// TaskShardIndex returns the task shard index implementation.
+func (c *Container) TaskShardIndex() out.TaskShardIndex {
+	if c.shardIndex == nil {
+		_ = c.Infrastructure()
+		c.shardIndex = adapters.NewRedisTaskShardIndexAdapter()
+	}
+
+	return c.shardIndex
 }
 
 // Cache returns the cache adapter implementation.
@@ -140,6 +156,7 @@ func (c *Container) DeleteTaskUC() commands.DeleteTaskHandler {
 		c.deleteTaskUC = use_cases.NewDeleteTask(
 			c.Repository(),
 			c.Cache(),
+			c.TaskShardIndex(),
 			c.Producer(),
 		)
 	}

@@ -7,7 +7,6 @@ import (
 	"strings"
 	"tasks/internal/application/ports/out"
 	"tasks/internal/domain"
-	"tasks/internal/infrastructure/cache"
 	"tasks/internal/infrastructure/persistence"
 	"tasks/internal/infrastructure/sharding/shard"
 	"tasks/logger"
@@ -15,17 +14,28 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/redis/go-redis/v9"
 )
 
 // PostgresRepository implements ports.Repository using pgxpool shards via shard.Manager.
 type PostgresRepository struct {
 	ShardManager *shard.ShardManager
 	Router       out.ShardRouter
+	shardIndex   out.TaskShardIndex
+	cache        out.Cache
 }
 
-func NewPostgresRepository(sm *shard.ShardManager, router out.ShardRouter) *PostgresRepository {
-	return &PostgresRepository{ShardManager: sm, Router: router}
+func NewPostgresRepository(
+	sm *shard.ShardManager,
+	router out.ShardRouter,
+	shardIndex out.TaskShardIndex,
+	cache out.Cache,
+) *PostgresRepository {
+	return &PostgresRepository{
+		ShardManager: sm,
+		Router:       router,
+		shardIndex:   shardIndex,
+		cache:        cache,
+	}
 }
 
 func (r *PostgresRepository) Save(ctx context.Context, t domain.Task) error {
@@ -43,7 +53,7 @@ func (r *PostgresRepository) Save(ctx context.Context, t domain.Task) error {
 		return err
 	}
 
-	_ = cache.SetTaskShard(ctx, t.ID, shardIndex)
+	_ = r.shardIndex.Set(ctx, t.ID, shardIndex)
 	return nil
 }
 
@@ -113,9 +123,9 @@ func (r *PostgresRepository) findOnShard(ctx context.Context, db *pgxpool.Pool, 
 }
 
 func (r *PostgresRepository) Delete(ctx context.Context, taskID uint) error {
-	shardIndex, err := cache.GetTaskShard(ctx, taskID)
+	shardIndex, err := r.shardIndex.Get(ctx, taskID)
 	if err != nil {
-		if !cache.IsNilError(err) {
+		if !errors.Is(err, out.ErrNotFound) {
 			return err
 		}
 
@@ -123,7 +133,7 @@ func (r *PostgresRepository) Delete(ctx context.Context, taskID uint) error {
 		if err != nil {
 			return err
 		}
-		_ = cache.SetTaskShard(ctx, taskID, shardIndex)
+		_ = r.shardIndex.Set(ctx, taskID, shardIndex)
 	}
 	db := r.ShardManager.GetShardByIndex(shardIndex)
 	if db == nil {
@@ -152,13 +162,13 @@ func (r *PostgresRepository) Delete(ctx context.Context, taskID uint) error {
 }
 
 func (r *PostgresRepository) GetByID(ctx context.Context, taskID uint) (*domain.Task, error) {
-	shardIndex, err := cache.GetTaskShard(ctx, taskID)
+	shardIndex, err := r.shardIndex.Get(ctx, taskID)
 	if err != nil {
-		if errors.Is(err, redis.Nil) {
+		if errors.Is(err, out.ErrNotFound) {
 			for idx, db := range r.ShardManager.GetAllShards() {
 				task, err := r.getTaskByIDOnShard(ctx, db, taskID)
 				if err == nil {
-					_ = cache.SetTaskShard(ctx, task.ID, idx)
+					_ = r.shardIndex.Set(ctx, task.ID, idx)
 					dt := persistence.TaskToDomain(*task)
 					return &dt, nil
 				}
@@ -214,7 +224,7 @@ func (r *PostgresRepository) findShardIndexByTaskID(ctx context.Context, taskID 
 func (r *PostgresRepository) Update(ctx context.Context, input out.UpdateTaskInput) (*domain.Task, error) {
 	taskID := input.ID
 
-	currentShardIndex, err := cache.GetTaskShard(ctx, taskID)
+	currentShardIndex, err := r.shardIndex.Get(ctx, taskID)
 	var fromShard *pgxpool.Pool
 	var task persistence.Task
 
@@ -231,10 +241,10 @@ func (r *PostgresRepository) Update(ctx context.Context, input out.UpdateTaskInp
 			task = *t
 		}
 	} else {
-		if cache.IsNilError(err) {
-			logger.Warn(ctx, "cache shard mapping miss for update", logger.ZapUint("task_id", taskID))
+		if errors.Is(err, out.ErrNotFound) {
+			logger.Warn(ctx, "shard index miss for update", logger.ZapUint("task_id", taskID))
 		} else {
-			logger.Warn(ctx, "cache error on get shard for update", logger.ZapError(err))
+			logger.Warn(ctx, "shard index error on update", logger.ZapError(err))
 		}
 	}
 
@@ -283,7 +293,7 @@ func (r *PostgresRepository) Update(ctx context.Context, input out.UpdateTaskInp
 			return nil, errors.New("target shard not found")
 		}
 
-		if err := migrateTaskToShard(ctx, &task, fromShard, toShard, newShardIndex); err != nil {
+		if err := r.migrateTaskToShard(ctx, &task, fromShard, toShard, newShardIndex); err != nil {
 			return nil, err
 		}
 	} else {
@@ -319,7 +329,7 @@ func (r *PostgresRepository) Update(ctx context.Context, input out.UpdateTaskInp
 		}
 	}
 
-	if err := cache.DeleteTaskCache(ctx, task.ID); err != nil {
+	if err := r.cache.DeleteTask(ctx, task.ID); err != nil {
 		logger.Warn(ctx, "cache delete failed", logger.ZapError(err))
 	}
 
@@ -327,7 +337,7 @@ func (r *PostgresRepository) Update(ctx context.Context, input out.UpdateTaskInp
 	return &dt, nil
 }
 
-func migrateTaskToShard(
+func (r *PostgresRepository) migrateTaskToShard(
 	ctx context.Context,
 	task *persistence.Task,
 	fromShard *pgxpool.Pool,
@@ -377,10 +387,10 @@ func migrateTaskToShard(
 		return err
 	}
 
-	if err := cache.SetTaskShard(ctx, task.ID, toIndex); err != nil {
+	if err := r.shardIndex.Set(ctx, task.ID, toIndex); err != nil {
 		return err
 	}
-	_ = cache.DeleteTaskCache(ctx, task.ID)
+	_ = r.cache.DeleteTask(ctx, task.ID)
 
 	return nil
 }
