@@ -10,32 +10,50 @@ import (
 	"tasks/internal/infrastructure/sharding/shard"
 )
 
-// InitializeInfrastructure centralizes previous initializer calls.
-// It returns the initialized ShardManager (shard.ShardMgr) for callers that need it.
-func InitializeInfrastructure(cfg *config.Config) *shard.ShardManager {
+// Infrastructure holds shared infrastructure dependencies.
+type Infrastructure struct {
+	ShardManager *shard.ShardManager
+	Redis        *cache.Store
+	Kafka        *kafke.Producer
+}
+
+// NewInfrastructure wires shard manager, Redis, and Kafka from config.
+func NewInfrastructure(cfg *config.Config) *Infrastructure {
 	if cfg == nil {
 		log.Fatalf("config is nil")
 	}
 
-	shard.InitShardManager(cfg.DBShardURLs, cfg.VNodesPerShard)
-	cache.InitRedis(cfg.RedisURL)
-	kafke.InitProducer(cfg.KafkaBrokers)
-	if err := migrations.SyncDatabaseForShards(context.Background(), shard.ShardMgr); err != nil {
+	sm := shard.NewShardManager(cfg.DBShardURLs, cfg.VNodesPerShard)
+	redis := cache.NewStore(cfg.RedisURL)
+	kafka := kafke.NewProducer(cfg.KafkaBrokers)
+
+	if err := migrations.SyncDatabaseForShards(context.Background(), sm); err != nil {
 		log.Fatalf("failed to migrate shards: %v", err)
 	}
 
-	if shard.ShardMgr == nil {
-		log.Fatalf("shard manager not initialized")
+	return &Infrastructure{
+		ShardManager: sm,
+		Redis:        redis,
+		Kafka:        kafka,
 	}
-	return shard.ShardMgr
 }
 
-// CleanupInfrastructure performs cleanup for infra packages initialized above.
-func CleanupInfrastructure() {
-	if err := kafke.CloseProducer(); err != nil {
-		log.Printf("Error closing kafka producer: %v", err)
+// Close releases infrastructure resources.
+func (i *Infrastructure) Close() {
+	if i == nil {
+		return
 	}
-	if err := cache.CloseRedis(); err != nil {
-		log.Printf("Error closing redis client: %v", err)
+	if i.Kafka != nil {
+		if err := i.Kafka.Close(); err != nil {
+			log.Printf("Error closing kafka producer: %v", err)
+		}
+	}
+	if i.Redis != nil {
+		if err := i.Redis.Close(); err != nil {
+			log.Printf("Error closing redis client: %v", err)
+		}
+	}
+	if i.ShardManager != nil {
+		i.ShardManager.Close()
 	}
 }

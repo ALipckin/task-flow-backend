@@ -10,15 +10,16 @@ import (
 	"tasks/internal/infrastructure/sharding/shard"
 	transportgrpc "tasks/internal/transport/grpc"
 	grpcmiddleware "tasks/internal/transport/grpc/middleware"
+	"tasks/logger"
 
 	"google.golang.org/grpc"
 )
 
 // Container provides lazy dependency initialization for the tasks service.
-// Each getter initializes its dependency once and reuses it on subsequent calls.
 type Container struct {
-	cfg      *config.Config
-	shardMgr *shard.ShardManager
+	cfg   *config.Config
+	log   *logger.Logger
+	infra *adapters.Infrastructure
 
 	repo       out.Repository
 	cache      out.Cache
@@ -36,27 +37,31 @@ type Container struct {
 	grpcServer *grpc.Server
 }
 
-// NewContainer creates an empty container with lazy initialization.
-func NewContainer() *Container {
-	return &Container{}
+// NewContainer creates a container with explicit config and logger.
+func NewContainer(cfg *config.Config, log *logger.Logger) *Container {
+	return &Container{cfg: cfg, log: log}
 }
 
 // Config returns the application configuration.
 func (c *Container) Config() *config.Config {
-	if c.cfg == nil {
-		c.cfg = config.AppConfig()
-	}
-
 	return c.cfg
 }
 
-// Infrastructure initializes shared infrastructure and returns the shard manager.
-func (c *Container) Infrastructure() *shard.ShardManager {
-	if c.shardMgr == nil {
-		c.shardMgr = adapters.InitializeInfrastructure(c.Config())
-	}
+// Logger returns the application logger.
+func (c *Container) Logger() *logger.Logger {
+	return c.log
+}
 
-	return c.shardMgr
+func (c *Container) infrastructure() *adapters.Infrastructure {
+	if c.infra == nil {
+		c.infra = adapters.NewInfrastructure(c.cfg)
+	}
+	return c.infra
+}
+
+// Infrastructure returns the shared shard manager.
+func (c *Container) Infrastructure() *shard.ShardManager {
+	return c.infrastructure().ShardManager
 }
 
 // Repository returns the task repository implementation.
@@ -68,6 +73,7 @@ func (c *Container) Repository() out.Repository {
 			adapters.NewShardRouter(sm),
 			c.TaskShardIndex(),
 			c.Cache(),
+			c.log,
 		)
 	}
 
@@ -77,8 +83,7 @@ func (c *Container) Repository() out.Repository {
 // TaskShardIndex returns the task shard index implementation.
 func (c *Container) TaskShardIndex() out.TaskShardIndex {
 	if c.shardIndex == nil {
-		_ = c.Infrastructure()
-		c.shardIndex = adapters.NewRedisTaskShardIndexAdapter()
+		c.shardIndex = adapters.NewRedisTaskShardIndexAdapter(c.infrastructure().Redis)
 	}
 
 	return c.shardIndex
@@ -87,8 +92,7 @@ func (c *Container) TaskShardIndex() out.TaskShardIndex {
 // Cache returns the cache adapter implementation.
 func (c *Container) Cache() out.Cache {
 	if c.cache == nil {
-		_ = c.Infrastructure()
-		c.cache = adapters.NewRedisCacheAdapter()
+		c.cache = adapters.NewRedisCacheAdapter(c.infrastructure().Redis)
 	}
 
 	return c.cache
@@ -97,8 +101,7 @@ func (c *Container) Cache() out.Cache {
 // Producer returns the event producer implementation.
 func (c *Container) Producer() out.EventProducer {
 	if c.producer == nil {
-		_ = c.Infrastructure()
-		c.producer = adapters.NewKafkaProducerAdapter()
+		c.producer = adapters.NewKafkaProducerAdapter(c.infrastructure().Kafka)
 	}
 
 	return c.producer
@@ -107,8 +110,7 @@ func (c *Container) Producer() out.EventProducer {
 // Allocator returns the ID allocator implementation.
 func (c *Container) Allocator() out.IDAllocator {
 	if c.allocator == nil {
-		_ = c.Infrastructure()
-		c.allocator = adapters.NewRedisIDAllocator()
+		c.allocator = adapters.NewRedisIDAllocator(c.infrastructure().Redis)
 	}
 
 	return c.allocator
@@ -135,6 +137,7 @@ func (c *Container) GetTaskUC() queries.GetTaskHandler {
 			c.Repository(),
 			c.Cache(),
 			c.Producer(),
+			c.log,
 		)
 	}
 
@@ -195,7 +198,7 @@ func (c *Container) TaskServer() *transportgrpc.TaskServer {
 func (c *Container) GRPCServer() *grpc.Server {
 	if c.grpcServer == nil {
 		c.grpcServer = grpc.NewServer(
-			grpc.UnaryInterceptor(grpcmiddleware.UnaryLoggingInterceptor()),
+			grpc.UnaryInterceptor(grpcmiddleware.UnaryLoggingInterceptor(c.log)),
 		)
 	}
 
@@ -204,5 +207,8 @@ func (c *Container) GRPCServer() *grpc.Server {
 
 // Cleanup releases infrastructure resources.
 func (c *Container) Cleanup() {
-	adapters.CleanupInfrastructure()
+	if c.infra != nil {
+		c.infra.Close()
+		c.infra = nil
+	}
 }

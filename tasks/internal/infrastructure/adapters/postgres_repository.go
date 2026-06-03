@@ -22,6 +22,7 @@ type PostgresRepository struct {
 	Router       out.ShardRouter
 	shardIndex   out.TaskShardIndex
 	cache        out.Cache
+	log          *logger.Logger
 }
 
 func NewPostgresRepository(
@@ -29,12 +30,14 @@ func NewPostgresRepository(
 	router out.ShardRouter,
 	shardIndex out.TaskShardIndex,
 	cache out.Cache,
+	log *logger.Logger,
 ) *PostgresRepository {
 	return &PostgresRepository{
 		ShardManager: sm,
 		Router:       router,
 		shardIndex:   shardIndex,
 		cache:        cache,
+		log:          log,
 	}
 }
 
@@ -242,9 +245,9 @@ func (r *PostgresRepository) Update(ctx context.Context, input out.UpdateTaskInp
 		}
 	} else {
 		if errors.Is(err, out.ErrNotFound) {
-			logger.Warn(ctx, "shard index miss for update", logger.ZapUint("task_id", taskID))
+			r.log.Warn(ctx, "shard index miss for update", logger.ZapUint("task_id", taskID))
 		} else {
-			logger.Warn(ctx, "shard index error on update", logger.ZapError(err))
+			r.log.Warn(ctx, "shard index error on update", logger.ZapError(err))
 		}
 	}
 
@@ -330,7 +333,7 @@ func (r *PostgresRepository) Update(ctx context.Context, input out.UpdateTaskInp
 	}
 
 	if err := r.cache.DeleteTask(ctx, task.ID); err != nil {
-		logger.Warn(ctx, "cache delete failed", logger.ZapError(err))
+		r.log.Warn(ctx, "cache delete failed", logger.ZapError(err))
 	}
 
 	dt := persistence.TaskToDomain(task)

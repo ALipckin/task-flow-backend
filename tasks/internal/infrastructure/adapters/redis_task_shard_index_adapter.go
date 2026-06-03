@@ -6,14 +6,16 @@ import (
 	"tasks/internal/infrastructure/cache"
 )
 
-type RedisTaskShardIndexAdapter struct{}
+type RedisTaskShardIndexAdapter struct {
+	store *cache.Store
+}
 
-func NewRedisTaskShardIndexAdapter() *RedisTaskShardIndexAdapter {
-	return &RedisTaskShardIndexAdapter{}
+func NewRedisTaskShardIndexAdapter(store *cache.Store) *RedisTaskShardIndexAdapter {
+	return &RedisTaskShardIndexAdapter{store: store}
 }
 
 func (a *RedisTaskShardIndexAdapter) Get(ctx context.Context, taskID uint) (int, error) {
-	idx, err := cache.GetTaskShard(ctx, taskID)
+	idx, err := a.store.GetTaskShard(ctx, taskID)
 	if err != nil {
 		if cache.IsNilError(err) {
 			return -1, out.ErrNotFound
@@ -24,9 +26,9 @@ func (a *RedisTaskShardIndexAdapter) Get(ctx context.Context, taskID uint) (int,
 }
 
 func (a *RedisTaskShardIndexAdapter) Set(ctx context.Context, taskID uint, shardIndex int) error {
-	return cache.SetTaskShard(ctx, taskID, shardIndex)
+	return a.store.SetTaskShard(ctx, taskID, shardIndex)
 }
 
 func (a *RedisTaskShardIndexAdapter) Delete(ctx context.Context, taskID uint) error {
-	return cache.DelTaskShard(ctx, taskID)
+	return a.store.DelTaskShard(ctx, taskID)
 }

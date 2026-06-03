@@ -14,15 +14,18 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-var redisClient *redis.Client
-
 const (
 	taskIDCounterKey = "task:id_counter"
 	taskShardKeyFmt  = "task:shard:%d"
 )
 
-// InitRedis initializes the Redis client using the provided URL.
-func InitRedis(redisURL string) {
+// Store provides Redis-backed task cache and ID allocation.
+type Store struct {
+	client *redis.Client
+}
+
+// NewStore connects to Redis using the provided URL.
+func NewStore(redisURL string) *Store {
 	if redisURL == "" {
 		panic("REDIS_URL not set")
 	}
@@ -31,14 +34,14 @@ func InitRedis(redisURL string) {
 		panic(err)
 	}
 
-	redisClient = redis.NewClient(opts)
+	client := redis.NewClient(opts)
 
 	const attempts = 10
 	const delay = 2 * time.Second
 	var lastErr error
 	for i := 1; i <= attempts; i++ {
-		if _, lastErr = redisClient.Ping(context.Background()).Result(); lastErr == nil {
-			return
+		if _, lastErr = client.Ping(context.Background()).Result(); lastErr == nil {
+			return &Store{client: client}
 		}
 		if i < attempts {
 			time.Sleep(delay)
@@ -48,13 +51,14 @@ func InitRedis(redisURL string) {
 		"redis unreachable at %s after %d attempts: %v (ensure redis is on task-network: docker compose up -d redis --force-recreate)",
 		redisURL, attempts, lastErr,
 	)
+	return nil
 }
 
-func CloseRedis() error {
-	if redisClient == nil {
+func (s *Store) Close() error {
+	if s.client == nil {
 		return nil
 	}
-	return redisClient.Close()
+	return s.client.Close()
 }
 
 // IsNilError reports whether err indicates a missing key in Redis (redis.Nil).
@@ -66,48 +70,44 @@ func CacheKey(taskID uint) string {
 	return fmt.Sprintf("task:%d", taskID)
 }
 
-// AllocTaskID returns the next global task ID (Redis INCR).
-func AllocTaskID(ctx context.Context) (uint, error) {
-	n, err := redisClient.Incr(ctx, taskIDCounterKey).Result()
+func (s *Store) AllocTaskID(ctx context.Context) (uint, error) {
+	n, err := s.client.Incr(ctx, taskIDCounterKey).Result()
 	if err != nil {
 		return 0, err
 	}
 	return uint(n), nil
 }
 
-// SetTaskShard stores the task_id -> shard_index mapping (for GetTask/Update/Delete).
-func SetTaskShard(ctx context.Context, taskID uint, shardIndex int) error {
-	return redisClient.Set(ctx, fmt.Sprintf(taskShardKeyFmt, taskID), shardIndex, 0).Err()
+func (s *Store) SetTaskShard(ctx context.Context, taskID uint, shardIndex int) error {
+	return s.client.Set(ctx, fmt.Sprintf(taskShardKeyFmt, taskID), shardIndex, 0).Err()
 }
 
-// GetTaskShard returns the shard index where the task lives. Returns error if not found.
-func GetTaskShard(ctx context.Context, taskID uint) (int, error) {
-	s, err := redisClient.Get(ctx, fmt.Sprintf(taskShardKeyFmt, taskID)).Result()
+func (s *Store) GetTaskShard(ctx context.Context, taskID uint) (int, error) {
+	val, err := s.client.Get(ctx, fmt.Sprintf(taskShardKeyFmt, taskID)).Result()
 	if err != nil {
 		return -1, err
 	}
-	i, err := strconv.Atoi(s)
+	i, err := strconv.Atoi(val)
 	if err != nil {
 		return -1, err
 	}
 	return i, nil
 }
 
-// DelTaskShard removes the mapping (on task delete or after migration update).
-func DelTaskShard(ctx context.Context, taskID uint) error {
-	return redisClient.Del(ctx, fmt.Sprintf(taskShardKeyFmt, taskID)).Err()
+func (s *Store) DelTaskShard(ctx context.Context, taskID uint) error {
+	return s.client.Del(ctx, fmt.Sprintf(taskShardKeyFmt, taskID)).Err()
 }
 
-func SetTask(ctx context.Context, task persistence.Task) error {
+func (s *Store) SetTask(ctx context.Context, task persistence.Task) error {
 	data, err := json.Marshal(task)
 	if err != nil {
 		return err
 	}
-	return redisClient.Set(ctx, CacheKey(task.ID), data, 10*time.Minute).Err()
+	return s.client.Set(ctx, CacheKey(task.ID), data, 10*time.Minute).Err()
 }
 
-func GetTask(ctx context.Context, taskID uint) (*persistence.Task, error) {
-	data, err := redisClient.Get(ctx, CacheKey(taskID)).Result()
+func (s *Store) GetTask(ctx context.Context, taskID uint) (*persistence.Task, error) {
+	data, err := s.client.Get(ctx, CacheKey(taskID)).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +118,6 @@ func GetTask(ctx context.Context, taskID uint) (*persistence.Task, error) {
 	return &task, nil
 }
 
-// DeleteTaskCache removes the cached serialized task by key.
-func DeleteTaskCache(ctx context.Context, taskID uint) error {
-	return redisClient.Del(ctx, CacheKey(taskID)).Err()
+func (s *Store) DeleteTaskCache(ctx context.Context, taskID uint) error {
+	return s.client.Del(ctx, CacheKey(taskID)).Err()
 }

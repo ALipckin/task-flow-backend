@@ -22,10 +22,8 @@ type ShardManager struct {
 	nextIdx uint32
 }
 
-var ShardMgr *ShardManager
-
-// InitShardManager builds the shard manager from provided shard URLs and vnodes.
-func InitShardManager(shardURLs []string, vnodes int) {
+// NewShardManager builds the shard manager from provided shard URLs and vnodes.
+func NewShardManager(shardURLs []string, vnodes int) *ShardManager {
 	urls := normalizeShardURLs(shardURLs)
 	if len(urls) == 0 {
 		log.Fatal("DB_SHARD_URLS not set")
@@ -53,12 +51,13 @@ func InitShardManager(shardURLs []string, vnodes int) {
 	vnodes = normalizeVNodes(vnodes)
 	ring := newConsistentRing(len(shards), vnodes)
 
-	ShardMgr = &ShardManager{
+	sm := &ShardManager{
 		shards: shards,
 		ring:   ring,
 		vnodes: vnodes,
 	}
 	log.Printf("ShardManager initialized with %d shards, %d vnodes/shard (consistent ring)", len(shards), vnodes)
+	return sm
 }
 
 // GetShardByPerformerID returns the shard for performer_id (ring key: performer:{id}).

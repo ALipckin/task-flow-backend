@@ -7,16 +7,20 @@ import (
 	"tasks/internal/infrastructure/persistence"
 )
 
-type RedisCacheAdapter struct{}
+type RedisCacheAdapter struct {
+	store *cache.Store
+}
 
-func NewRedisCacheAdapter() *RedisCacheAdapter { return &RedisCacheAdapter{} }
+func NewRedisCacheAdapter(store *cache.Store) *RedisCacheAdapter {
+	return &RedisCacheAdapter{store: store}
+}
 
 func (a *RedisCacheAdapter) SetTask(ctx context.Context, task domain.Task) error {
-	return cache.SetTask(ctx, persistence.TaskFromDomain(task))
+	return a.store.SetTask(ctx, persistence.TaskFromDomain(task))
 }
 
 func (a *RedisCacheAdapter) GetTask(ctx context.Context, taskID uint) (domain.Task, error) {
-	p, err := cache.GetTask(ctx, taskID)
+	p, err := a.store.GetTask(ctx, taskID)
 	if err != nil {
 		return domain.Task{}, err
 	}
@@ -24,5 +28,5 @@ func (a *RedisCacheAdapter) GetTask(ctx context.Context, taskID uint) (domain.Ta
 }
 
 func (a *RedisCacheAdapter) DeleteTask(ctx context.Context, taskID uint) error {
-	return cache.DeleteTaskCache(ctx, taskID)
+	return a.store.DeleteTaskCache(ctx, taskID)
 }

@@ -5,10 +5,14 @@ import (
 	"tasks/internal/infrastructure/cache"
 )
 
-type RedisIDAllocator struct{}
+type RedisIDAllocator struct {
+	store *cache.Store
+}
 
-func NewRedisIDAllocator() *RedisIDAllocator { return &RedisIDAllocator{} }
+func NewRedisIDAllocator(store *cache.Store) *RedisIDAllocator {
+	return &RedisIDAllocator{store: store}
+}
 
 func (a *RedisIDAllocator) NextID(ctx context.Context) (uint, error) {
-	return cache.AllocTaskID(ctx)
+	return a.store.AllocTaskID(ctx)
 }

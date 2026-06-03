@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"tasks/internal/config"
+	"tasks/logger"
 	"tasks/proto/taskpb"
 )
 
@@ -19,14 +20,14 @@ type App struct {
 	container *Container
 }
 
-// New initializes the application container.
-func New() *App {
-	return &App{container: NewContainer()}
+// New creates an App from config and logger.
+func New(cfg *config.Config, log *logger.Logger) *App {
+	return &App{container: NewContainer(cfg, log)}
 }
 
 // Run starts the gRPC server and blocks until shutdown.
 func (a *App) Run() error {
-	cfg := config.AppConfig()
+	cfg := a.container.Config()
 	grpcServer := a.container.GRPCServer()
 	taskpb.RegisterTaskServiceServer(grpcServer, a.container.TaskServer())
 

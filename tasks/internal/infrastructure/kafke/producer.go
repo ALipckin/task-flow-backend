@@ -8,41 +8,43 @@ import (
 	"github.com/IBM/sarama"
 )
 
-var KafkaProducer sarama.SyncProducer
+// Producer sends messages to Kafka.
+type Producer struct {
+	sync sarama.SyncProducer
+}
 
-// InitProducer initializes the Kafka producer with provided broker list.
-func InitProducer(brokers []string) {
+// NewProducer creates a Kafka sync producer for the given brokers.
+func NewProducer(brokers []string) *Producer {
 	brokers = normalizeBrokers(brokers)
 	if len(brokers) == 0 {
 		brokers = []string{"kafka:9092"}
 	}
 
-	config := sarama.NewConfig()
-	config.Producer.Return.Successes = true
-	config.Producer.Timeout = 5 * time.Second
+	cfg := sarama.NewConfig()
+	cfg.Producer.Return.Successes = true
+	cfg.Producer.Timeout = 5 * time.Second
 
-	producer, err := sarama.NewSyncProducer(brokers, config)
+	producer, err := sarama.NewSyncProducer(brokers, cfg)
 	if err != nil {
 		log.Fatalf("Error creating Kafka producer: %v", err)
 	}
 
-	KafkaProducer = producer
 	log.Println("Kafka producer initialized successfully")
+	return &Producer{sync: producer}
 }
 
-// SendMessage sends a message to Kafka.
-func SendMessage(topic, message string) error {
+func (p *Producer) SendMessage(topic, message string) error {
+	if p == nil || p.sync == nil {
+		log.Printf("No Kafka producer available, skipping message: %s", message)
+		return nil
+	}
+
 	msg := &sarama.ProducerMessage{
 		Topic: topic,
 		Value: sarama.StringEncoder(message),
 	}
 
-	if KafkaProducer == nil {
-		log.Printf("No Kafka producer available, skipping message: %s", message)
-		return nil
-	}
-
-	_, _, err := KafkaProducer.SendMessage(msg)
+	_, _, err := p.sync.SendMessage(msg)
 	if err != nil {
 		log.Printf("Error sending message to Kafka: %v", err)
 		return err
@@ -51,19 +53,18 @@ func SendMessage(topic, message string) error {
 	return nil
 }
 
-func SendMessageToKafka(message []byte) error {
-	topic := "task_events"
-	msg := &sarama.ProducerMessage{
-		Topic: topic,
-		Value: sarama.ByteEncoder(message),
-	}
-
-	if KafkaProducer == nil {
+func (p *Producer) SendMessageToKafka(message []byte) error {
+	if p == nil || p.sync == nil {
 		log.Printf("No Kafka producer available to send message")
 		return nil
 	}
 
-	_, _, err := KafkaProducer.SendMessage(msg)
+	msg := &sarama.ProducerMessage{
+		Topic: "task_events",
+		Value: sarama.ByteEncoder(message),
+	}
+
+	_, _, err := p.sync.SendMessage(msg)
 	if err != nil {
 		log.Printf("Failed to send Kafka message: %v", err)
 		return err
@@ -71,15 +72,14 @@ func SendMessageToKafka(message []byte) error {
 	return nil
 }
 
-// CloseProducer closes the package producer.
-func CloseProducer() error {
-	if KafkaProducer == nil {
+func (p *Producer) Close() error {
+	if p == nil || p.sync == nil {
 		return nil
 	}
-	if err := KafkaProducer.Close(); err != nil {
+	if err := p.sync.Close(); err != nil {
 		return err
 	}
-	KafkaProducer = nil
+	p.sync = nil
 	return nil
 }
 

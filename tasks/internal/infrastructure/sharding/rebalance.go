@@ -13,14 +13,16 @@ import (
 
 // Rebalancer migrates tasks between shards and keeps the shard index in sync.
 type Rebalancer struct {
-	shardIndex out.TaskShardIndex
-	cache      out.Cache
+	shardManager *shard.ShardManager
+	shardIndex   out.TaskShardIndex
+	cache        out.Cache
 }
 
-func NewRebalancer(shardIndex out.TaskShardIndex, cache out.Cache) *Rebalancer {
+func NewRebalancer(shardManager *shard.ShardManager, shardIndex out.TaskShardIndex, cache out.Cache) *Rebalancer {
 	return &Rebalancer{
-		shardIndex: shardIndex,
-		cache:      cache,
+		shardManager: shardManager,
+		shardIndex:   shardIndex,
+		cache:        cache,
 	}
 }
 
@@ -28,10 +30,10 @@ func NewRebalancer(shardIndex out.TaskShardIndex, cache out.Cache) *Rebalancer {
 // changed after adding a new shard, migrates their tasks to the new shard.
 // Postgres is unaware; the app copies data and updates the mapping in Redis.
 func (r *Rebalancer) Run(ctx context.Context) {
-	if shard.ShardMgr == nil {
+	if r.shardManager == nil {
 		return
 	}
-	allShards := shard.ShardMgr.GetAllShards()
+	allShards := r.shardManager.GetAllShards()
 	for currentShardIndex, sh := range allShards {
 		r.migratePerformerIDsFromShard(ctx, sh, currentShardIndex)
 	}
@@ -56,12 +58,12 @@ func (r *Rebalancer) migratePerformerIDsFromShard(ctx context.Context, sh *pgxpo
 			continue
 		}
 
-		newShardIndex := shard.ShardMgr.GetShardByPerformerIDIndex(performerID)
+		newShardIndex := r.shardManager.GetShardByPerformerIDIndex(performerID)
 		if newShardIndex == currentShardIndex {
 			continue
 		}
 
-		newShard := shard.ShardMgr.GetShardByIndex(newShardIndex)
+		newShard := r.shardManager.GetShardByIndex(newShardIndex)
 		if newShard == nil {
 			continue
 		}

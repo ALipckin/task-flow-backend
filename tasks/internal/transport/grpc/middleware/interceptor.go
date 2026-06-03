@@ -14,7 +14,7 @@ type contextKey string
 
 const requestIDContextKey contextKey = "requestID"
 
-func UnaryLoggingInterceptor() grpc.UnaryServerInterceptor {
+func UnaryLoggingInterceptor(log *logger.Logger) grpc.UnaryServerInterceptor {
 	return func(
 		ctx context.Context,
 		req interface{},
@@ -31,10 +31,10 @@ func UnaryLoggingInterceptor() grpc.UnaryServerInterceptor {
 		}
 
 		ctx = context.WithValue(ctx, requestIDContextKey, reqID)
-		logger.Info(ctx, "Incoming gRPC request", zap.String("method", info.FullMethod))
+		log.Info(ctx, "Incoming gRPC request", zap.String("method", info.FullMethod))
 		resp, err := handler(ctx, req)
 		if err != nil {
-			logger.Error(ctx, "gRPC error", err)
+			log.Error(ctx, "gRPC error", err)
 		}
 
 		return resp, err

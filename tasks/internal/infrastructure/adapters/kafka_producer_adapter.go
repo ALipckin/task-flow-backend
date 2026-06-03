@@ -8,12 +8,15 @@ import (
 	"tasks/internal/infrastructure/kafke"
 )
 
-type KafkaProducerAdapter struct{}
+type KafkaProducerAdapter struct {
+	producer *kafke.Producer
+}
 
-func NewKafkaProducerAdapter() *KafkaProducerAdapter { return &KafkaProducerAdapter{} }
+func NewKafkaProducerAdapter(producer *kafke.Producer) *KafkaProducerAdapter {
+	return &KafkaProducerAdapter{producer: producer}
+}
 
 func (a *KafkaProducerAdapter) PublishCreated(ctx context.Context, task domain.Task) error {
-	// prepare payload
 	payload := map[string]interface{}{
 		"event": "TaskCreated",
 		"id":    task.ID,
@@ -24,7 +27,6 @@ func (a *KafkaProducerAdapter) PublishCreated(ctx context.Context, task domain.T
 		return err
 	}
 
-	// send asynchronously and protect against panics / nil receivers
 	go func(data []byte) {
 		defer func() {
 			if r := recover(); r != nil {
@@ -32,8 +34,7 @@ func (a *KafkaProducerAdapter) PublishCreated(ctx context.Context, task domain.T
 			}
 		}()
 
-		// send via kafke package
-		if err := kafke.SendMessageToKafka(data); err != nil {
+		if err := a.producer.SendMessageToKafka(data); err != nil {
 			log.Printf("kafka send error: %v", err)
 		}
 	}(b)
@@ -42,7 +43,6 @@ func (a *KafkaProducerAdapter) PublishCreated(ctx context.Context, task domain.T
 }
 
 func (a *KafkaProducerAdapter) PublishDeleted(ctx context.Context, task domain.Task) error {
-	// prepare payload
 	payload := map[string]interface{}{
 		"event": "TaskDeleted",
 		"id":    task.ID,
@@ -53,7 +53,6 @@ func (a *KafkaProducerAdapter) PublishDeleted(ctx context.Context, task domain.T
 		return err
 	}
 
-	// send asynchronously and protect against panics / nil receivers
 	go func(data []byte) {
 		defer func() {
 			if r := recover(); r != nil {
@@ -61,8 +60,7 @@ func (a *KafkaProducerAdapter) PublishDeleted(ctx context.Context, task domain.T
 			}
 		}()
 
-		// send via kafke package
-		if err := kafke.SendMessageToKafka(data); err != nil {
+		if err := a.producer.SendMessageToKafka(data); err != nil {
 			log.Printf("kafka send error: %v", err)
 		}
 	}(b)
@@ -94,7 +92,7 @@ func (a *KafkaProducerAdapter) PublishUpdated(ctx context.Context, task domain.T
 				log.Printf("panic while sending kafka message: %v", r)
 			}
 		}()
-		if err := kafke.SendMessageToKafka(data); err != nil {
+		if err := a.producer.SendMessageToKafka(data); err != nil {
 			log.Printf("kafka send error: %v", err)
 		}
 	}(b)

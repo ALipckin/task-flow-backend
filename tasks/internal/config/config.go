@@ -4,7 +4,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 )
 
 // Config holds application configuration values.
@@ -14,20 +13,6 @@ type Config struct {
 	RedisURL       string
 	KafkaBrokers   []string
 	VNodesPerShard int
-}
-
-var (
-	appConfig *Config
-	loadOnce  sync.Once
-)
-
-// AppConfig returns the singleton config loaded from environment variables.
-func AppConfig() *Config {
-	loadOnce.Do(func() {
-		appConfig = LoadFromEnv()
-	})
-
-	return appConfig
 }
 
 // LoadFromEnv builds config using environment variables with sane defaults.
