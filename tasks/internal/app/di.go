@@ -2,6 +2,7 @@ package app
 
 import (
 	"tasks/internal/application/ports/in/commands"
+	ingrpc "tasks/internal/application/ports/in/grpc"
 	"tasks/internal/application/ports/in/queries"
 	"tasks/internal/application/ports/out"
 	"tasks/internal/application/use_cases"
@@ -33,8 +34,8 @@ type Container struct {
 	deleteTaskUC *use_cases.DeleteTask
 	updateTaskUC *use_cases.UpdateTask
 
-	taskServer *transportgrpc.TaskServer
-	grpcServer *grpc.Server
+	taskService ingrpc.TaskService
+	grpcServer  *grpc.Server
 }
 
 // NewContainer creates a container with explicit config and logger.
@@ -179,10 +180,10 @@ func (c *Container) UpdateTaskUC() commands.UpdateTaskHandler {
 	return c.updateTaskUC
 }
 
-// TaskServer returns the gRPC task server with injected use-cases.
-func (c *Container) TaskServer() *transportgrpc.TaskServer {
-	if c.taskServer == nil {
-		c.taskServer = &transportgrpc.TaskServer{
+// TaskService returns the inbound gRPC port with injected use-cases.
+func (c *Container) TaskService() ingrpc.TaskService {
+	if c.taskService == nil {
+		c.taskService = &transportgrpc.TaskServer{
 			CreateUC:   c.CreateTaskUC(),
 			GetTaskUC:  c.GetTaskUC(),
 			GetTasksUC: c.GetTasksUC(),
@@ -191,7 +192,7 @@ func (c *Container) TaskServer() *transportgrpc.TaskServer {
 		}
 	}
 
-	return c.taskServer
+	return c.taskService
 }
 
 // GRPCServer returns the configured gRPC server instance.

@@ -12,7 +12,6 @@ import (
 
 	"tasks/internal/config"
 	"tasks/logger"
-	"tasks/proto/taskpb"
 )
 
 // App owns the application lifecycle.
@@ -29,7 +28,7 @@ func New(cfg *config.Config, log *logger.Logger) *App {
 func (a *App) Run() error {
 	cfg := a.container.Config()
 	grpcServer := a.container.GRPCServer()
-	taskpb.RegisterTaskServiceServer(grpcServer, a.container.TaskServer())
+	a.container.TaskService().Register(grpcServer)
 
 	port := ":" + cfg.GRPCPort
 	listener, err := net.Listen("tcp", port)
