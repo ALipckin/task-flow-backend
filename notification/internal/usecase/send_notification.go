@@ -29,17 +29,7 @@ func NewSendNotification(
 }
 
 func (uc *SendNotification) Execute(ctx context.Context, event domain.TaskEvent) error {
-	recipients := make(map[int]struct{})
-	for _, id := range event.ObserversIDs {
-		recipients[id] = struct{}{}
-	}
-	recipients[event.PerformerID] = struct{}{}
-	recipients[event.CreatorID] = struct{}{}
-
-	userIDs := make([]int, 0, len(recipients))
-	for id := range recipients {
-		userIDs = append(userIDs, id)
-	}
+	userIDs := domain.NotificationRecipients(event)
 
 	if len(userIDs) == 0 {
 		return nil

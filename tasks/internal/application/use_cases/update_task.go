@@ -23,18 +23,24 @@ func NewUpdateTask(
 }
 
 func (uc *UpdateTask) Execute(ctx context.Context, cmd commands.UpdateTaskCommand) (domain.Task, error) {
-	input := out.UpdateTaskInput{
-		ID:          uint(cmd.ID),
-		Title:       cmd.Title,
-		Description: cmd.Description,
-		Status:      cmd.Status,
-		PerformerID: cmd.PerformerID,
-		CreatorID:   cmd.CreatorID,
-		ObserverIDs: uint64SliceToUint(cmd.ObserverIDs),
+	task, err := uc.repo.GetByID(ctx, uint(cmd.ID))
+	if err != nil {
+		return domain.Task{}, err
 	}
 
-	task, err := uc.repo.Update(ctx, input)
-	if err != nil {
+	previousPerformerID := task.PerformerId
+	if err := task.ApplyUpdate(
+		cmd.Title,
+		cmd.Description,
+		cmd.Status,
+		cmd.PerformerID,
+		cmd.CreatorID,
+		uint64SliceToUint(cmd.ObserverIDs),
+	); err != nil {
+		return domain.Task{}, err
+	}
+
+	if err := uc.repo.Update(ctx, *task, previousPerformerID); err != nil {
 		return domain.Task{}, err
 	}
 

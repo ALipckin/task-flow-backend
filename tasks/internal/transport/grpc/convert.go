@@ -13,7 +13,7 @@ func convertToProto(task domain.Task) *taskpb.Task {
 		Id:          uint64(task.ID),
 		Title:       task.Title,
 		Description: task.Description,
-		Status:      task.Status,
+		Status:      task.Status.String(),
 		PerformerId: uint64(task.PerformerId),
 		CreatorId:   uint64(task.CreatorId),
 		ObserverIds: task.ObserverUserIDs(),

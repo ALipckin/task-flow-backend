@@ -16,10 +16,14 @@ func (s *TaskServer) CreateTask(
 		Description: req.Description,
 		PerformerID: uint(req.PerformerId),
 		CreatorID:   uint(req.CreatorId),
+		ObserverIDs: uint64SliceToUint(req.ObserverIds),
 	}
 
 	task, err := s.CreateUC.Execute(ctx, cmd)
 	if err != nil {
+		if domainErr, ok := mapDomainError(err); ok {
+			return nil, domainErr
+		}
 		return nil, err
 	}
 
