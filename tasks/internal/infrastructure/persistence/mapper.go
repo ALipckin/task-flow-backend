@@ -3,18 +3,23 @@ package persistence
 import "tasks/internal/domain"
 
 func TaskToDomain(t Task) domain.Task {
-	return domain.Task{
-		ID:          t.ID,
-		Title:       t.Title,
-		Description: t.Description,
-		PerformerId: t.PerformerId,
-		CreatorId:   t.CreatorId,
-		Observers:   ObserversToDomain(t.Observers),
-		Status:      t.Status,
-		CreatedAt:   t.CreatedAt,
-		UpdatedAt:   t.UpdatedAt,
-		DeletedAt:   t.DeletedAt,
+	status, err := domain.ParseTaskStatus(t.Status)
+	if err != nil {
+		status = domain.TaskStatusPending
 	}
+
+	return domain.ReconstituteTask(
+		t.ID,
+		t.Title,
+		t.Description,
+		t.CreatorId,
+		t.PerformerId,
+		ObserversToDomain(t.Observers),
+		status,
+		t.CreatedAt,
+		t.UpdatedAt,
+		t.DeletedAt,
+	)
 }
 
 func TaskFromDomain(t domain.Task) Task {
@@ -25,7 +30,7 @@ func TaskFromDomain(t domain.Task) Task {
 		PerformerId: t.PerformerId,
 		CreatorId:   t.CreatorId,
 		Observers:   ObserversFromDomain(t.Observers),
-		Status:      t.Status,
+		Status:      t.Status.String(),
 		CreatedAt:   t.CreatedAt,
 		UpdatedAt:   t.UpdatedAt,
 		DeletedAt:   t.DeletedAt,
