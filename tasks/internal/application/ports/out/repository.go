@@ -13,23 +13,13 @@ type TaskFilter struct {
 	PerformerID uint
 }
 
-type UpdateTaskInput struct {
-	ID          uint
-	Title       string
-	Description string
-	Status      string
-	PerformerID uint
-	CreatorID   uint
-	ObserverIDs []uint
-}
-
 // Repository represents persistence operations required by use-cases.
 type Repository interface {
 	Save(ctx context.Context, task domain.Task) error
 	Find(ctx context.Context, filter TaskFilter) ([]domain.Task, error)
 	Delete(ctx context.Context, taskID uint) error
 	GetByID(ctx context.Context, taskID uint) (*domain.Task, error)
-	Update(ctx context.Context, input UpdateTaskInput) (*domain.Task, error)
+	Update(ctx context.Context, task domain.Task, previousPerformerID uint) error
 }
 
 // IDAllocator generates IDs for new tasks.

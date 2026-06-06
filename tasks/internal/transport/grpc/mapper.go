@@ -20,7 +20,7 @@ func ToProto(task *domain.Task) *taskpb.Task {
 		PerformerId: uint64(task.PerformerId),
 		CreatorId:   uint64(task.CreatorId),
 		ObserverIds: task.ObserverUserIDs(),
-		Status:      task.Status,
+		Status:      task.Status.String(),
 		CreatedAt:   timestamppb.New(task.CreatedAt),
 		UpdatedAt:   timestamppb.New(task.UpdatedAt),
 	}
@@ -31,6 +31,11 @@ func ToDomain(pb *taskpb.Task) *domain.Task {
 		return nil
 	}
 
+	status, err := domain.ParseTaskStatus(pb.Status)
+	if err != nil {
+		status = domain.TaskStatusPending
+	}
+
 	return &domain.Task{
 		ID:          uint(pb.Id),
 		Title:       pb.Title,
@@ -38,7 +43,7 @@ func ToDomain(pb *taskpb.Task) *domain.Task {
 		PerformerId: uint(pb.PerformerId),
 		CreatorId:   uint(pb.CreatorId),
 		Observers:   domain.ObserversFromUserIDs(pb.ObserverIds),
-		Status:      pb.Status,
+		Status:      status,
 		CreatedAt:   timestampToTime(pb.CreatedAt),
 		UpdatedAt:   timestampToTime(pb.UpdatedAt),
 	}

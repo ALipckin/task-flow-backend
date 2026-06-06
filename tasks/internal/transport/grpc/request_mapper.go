@@ -15,7 +15,9 @@ func ApplyTaskFieldsFromRequest(task *domain.Task, req interface{}) error {
 		task.PerformerId = uint(r.PerformerId)
 		task.CreatorId = uint(r.CreatorId)
 		task.Observers = domain.ObserversFromUserIDs(r.ObserverIds)
-		task.Status = r.Status
+		if status, err := domain.ParseTaskStatus(r.Status); err == nil {
+			task.Status = status
+		}
 		task.CreatedAt = time.Now()
 		task.UpdatedAt = time.Now()
 	case *taskpb.UpdateTaskRequest:
@@ -24,7 +26,9 @@ func ApplyTaskFieldsFromRequest(task *domain.Task, req interface{}) error {
 		task.PerformerId = uint(r.PerformerId)
 		task.CreatorId = uint(r.CreatorId)
 		task.Observers = domain.ObserversFromUserIDs(r.ObserverIds)
-		task.Status = r.Status
+		if status, err := domain.ParseTaskStatus(r.Status); err == nil {
+			task.Status = status
+		}
 		task.UpdatedAt = time.Now()
 	default:
 		return errors.New("unknown request type")

@@ -24,13 +24,22 @@ func NewCreateTask(
 }
 
 func (uc *CreateTask) Execute(ctx context.Context, cmd commands.CreateTaskCommand) (domain.Task, error) {
-
 	id, err := uc.allocator.NextID(ctx)
 	if err != nil {
 		return domain.Task{}, err
 	}
 
-	task := domain.NewTask(id, cmd.Title, cmd.Description, cmd.CreatorID, cmd.PerformerID)
+	task, err := domain.NewTask(
+		id,
+		cmd.Title,
+		cmd.Description,
+		cmd.CreatorID,
+		cmd.PerformerID,
+		cmd.ObserverIDs,
+	)
+	if err != nil {
+		return domain.Task{}, err
+	}
 
 	if err := uc.repo.Save(ctx, task); err != nil {
 		return domain.Task{}, err
@@ -38,6 +47,7 @@ func (uc *CreateTask) Execute(ctx context.Context, cmd commands.CreateTaskComman
 
 	_ = uc.cache.SetTask(ctx, task)
 	_ = uc.producer.PublishCreated(ctx, task)
+	task.PullEvents()
 
 	return task, nil
 }

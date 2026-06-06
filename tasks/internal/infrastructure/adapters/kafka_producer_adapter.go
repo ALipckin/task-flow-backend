@@ -77,7 +77,7 @@ func (a *KafkaProducerAdapter) PublishUpdated(ctx context.Context, task domain.T
 		"performer_id":  task.PerformerId,
 		"creator_id":    task.CreatorId,
 		"observers_ids": observerIDs(task.Observers),
-		"status":        task.Status,
+		"status":        task.Status.String(),
 		"created_at":    task.CreatedAt,
 		"updated_at":    task.UpdatedAt,
 	}

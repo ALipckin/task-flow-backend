@@ -5,6 +5,7 @@ import (
 	"errors"
 	"tasks/internal/application/ports/in/commands"
 	"tasks/internal/application/ports/out"
+	"tasks/internal/domain"
 	"tasks/proto/taskpb"
 
 	"google.golang.org/grpc/codes"
@@ -27,8 +28,29 @@ func (s *TaskServer) UpdateTask(ctx context.Context, req *taskpb.UpdateTaskReque
 		if errors.Is(err, out.ErrNotFound) {
 			return nil, status.Errorf(codes.NotFound, "task %d not found", req.Id)
 		}
+		if domainErr, ok := mapDomainError(err); ok {
+			return nil, domainErr
+		}
 		return nil, err
 	}
 
 	return &taskpb.TaskResponse{Task: ToProto(&task)}, nil
+}
+
+func mapDomainError(err error) (error, bool) {
+	switch {
+	case errors.Is(err, domain.ErrEmptyTitle),
+		errors.Is(err, domain.ErrTitleTooLong),
+		errors.Is(err, domain.ErrDescriptionTooLong),
+		errors.Is(err, domain.ErrInvalidStatus),
+		errors.Is(err, domain.ErrInvalidStatusTransition),
+		errors.Is(err, domain.ErrInvalidPerformer),
+		errors.Is(err, domain.ErrInvalidCreator),
+		errors.Is(err, domain.ErrObserverIsPerformer),
+		errors.Is(err, domain.ErrDuplicateObserver),
+		errors.Is(err, domain.ErrTaskDeleted):
+		return status.Error(codes.InvalidArgument, err.Error()), true
+	default:
+		return nil, false
+	}
 }

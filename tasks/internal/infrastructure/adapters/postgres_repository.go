@@ -10,7 +10,6 @@ import (
 	"tasks/internal/infrastructure/persistence"
 	"tasks/internal/infrastructure/sharding/shard"
 	"tasks/logger"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -48,11 +47,32 @@ func (r *PostgresRepository) Save(ctx context.Context, t domain.Task) error {
 		return errors.New("shard not found")
 	}
 
-	_, err := db.Exec(ctx, `
-		INSERT INTO tasks (id, title, description, performer_id, creator_id, status, created_at, updated_at, deleted_at)
-		VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW(), NULL)
-	`, t.ID, t.Title, t.Description, t.PerformerId, t.CreatorId, t.Status)
+	model := persistence.TaskFromDomain(t)
+
+	tx, err := db.Begin(ctx)
 	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	_, err = tx.Exec(ctx, `
+		INSERT INTO tasks (id, title, description, performer_id, creator_id, status, created_at, updated_at, deleted_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULL)
+	`, model.ID, model.Title, model.Description, model.PerformerId, model.CreatorId, model.Status, model.CreatedAt, model.UpdatedAt)
+	if err != nil {
+		return err
+	}
+
+	for _, obs := range model.Observers {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO observers (user_id, task_id, created_at, updated_at, deleted_at)
+			VALUES ($1, $2, NOW(), NOW(), NULL)
+		`, obs.UserId, model.ID); err != nil {
+			return err
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
 
@@ -224,24 +244,22 @@ func (r *PostgresRepository) findShardIndexByTaskID(ctx context.Context, taskID 
 	return -1, out.ErrNotFound
 }
 
-func (r *PostgresRepository) Update(ctx context.Context, input out.UpdateTaskInput) (*domain.Task, error) {
-	taskID := input.ID
+func (r *PostgresRepository) Update(ctx context.Context, task domain.Task, previousPerformerID uint) error {
+	taskID := task.ID
+	model := persistence.TaskFromDomain(task)
 
 	currentShardIndex, err := r.shardIndex.Get(ctx, taskID)
 	var fromShard *pgxpool.Pool
-	var task persistence.Task
 
 	if err == nil {
 		fromShard = r.ShardManager.GetShardByIndex(currentShardIndex)
 		if fromShard != nil {
-			t, getErr := r.getTaskPersistenceByID(ctx, fromShard, taskID)
-			if getErr != nil {
+			if _, getErr := r.getTaskPersistenceByID(ctx, fromShard, taskID); getErr != nil {
 				if errors.Is(getErr, out.ErrNotFound) {
-					return nil, out.ErrNotFound
+					return out.ErrNotFound
 				}
-				return nil, getErr
+				return getErr
 			}
-			task = *t
 		}
 	} else {
 		if errors.Is(err, out.ErrNotFound) {
@@ -259,85 +277,73 @@ func (r *PostgresRepository) Update(ctx context.Context, input out.UpdateTaskInp
 				continue
 			}
 
-			t, getErr := r.getTaskPersistenceByID(ctx, sh, taskID)
-			if getErr != nil {
+			if _, getErr := r.getTaskPersistenceByID(ctx, sh, taskID); getErr != nil {
 				if errors.Is(getErr, out.ErrNotFound) {
 					continue
 				}
-				return nil, getErr
+				return getErr
 			}
 
 			fromShard = sh
 			currentShardIndex = idx
-			task = *t
 			found = true
 			break
 		}
 		if !found {
-			return nil, out.ErrNotFound
+			return out.ErrNotFound
 		}
 	}
 
-	oldPerformerID := task.PerformerId
-	task.Title = input.Title
-	task.Description = input.Description
-	task.PerformerId = input.PerformerID
-	task.CreatorId = input.CreatorID
-	task.Observers = persistence.ObserversFromUserIDs(input.ObserverIDs)
-	task.Status = input.Status
-	task.UpdatedAt = time.Now()
-
-	newShardIndex := r.Router.Resolve(task.PerformerId)
-	needMigrate := oldPerformerID != task.PerformerId && newShardIndex != currentShardIndex
+	newShardIndex := r.Router.Resolve(model.PerformerId)
+	needMigrate := previousPerformerID != model.PerformerId && newShardIndex != currentShardIndex
 
 	if needMigrate {
 		toShard := r.ShardManager.GetShardByIndex(newShardIndex)
 		if toShard == nil {
-			return nil, errors.New("target shard not found")
+			return errors.New("target shard not found")
 		}
 
-		if err := r.migrateTaskToShard(ctx, &task, fromShard, toShard, newShardIndex); err != nil {
-			return nil, err
+		if err := r.migrateTaskToShard(ctx, &model, fromShard, toShard, newShardIndex); err != nil {
+			return err
 		}
 	} else {
 		tx, err := fromShard.Begin(ctx)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		defer func() { _ = tx.Rollback(ctx) }()
 
 		if _, err := tx.Exec(ctx, `
 			UPDATE tasks
-			SET title = $1, description = $2, performer_id = $3, creator_id = $4, status = $5, updated_at = NOW()
-			WHERE id = $6
-		`, task.Title, task.Description, task.PerformerId, task.CreatorId, task.Status, task.ID); err != nil {
-			return nil, err
+			SET title = $1, description = $2, performer_id = $3, creator_id = $4, status = $5, updated_at = $6
+			WHERE id = $7
+		`, model.Title, model.Description, model.PerformerId, model.CreatorId, model.Status, model.UpdatedAt, model.ID); err != nil {
+			return err
 		}
 
-		if _, err := tx.Exec(ctx, `DELETE FROM observers WHERE task_id = $1`, task.ID); err != nil {
-			return nil, err
+		if _, err := tx.Exec(ctx, `DELETE FROM observers WHERE task_id = $1`, model.ID); err != nil {
+			return err
 		}
 
-		for _, obs := range task.Observers {
+		for _, obs := range model.Observers {
 			if _, err := tx.Exec(ctx, `
 				INSERT INTO observers (user_id, task_id, created_at, updated_at, deleted_at)
 				VALUES ($1, $2, NOW(), NOW(), NULL)
-			`, obs.UserId, task.ID); err != nil {
-				return nil, err
+			`, obs.UserId, model.ID); err != nil {
+				return err
 			}
 		}
 
 		if err := tx.Commit(ctx); err != nil {
-			return nil, err
+			return err
 		}
 	}
 
-	if err := r.cache.DeleteTask(ctx, task.ID); err != nil {
+	if err := r.cache.DeleteTask(ctx, model.ID); err != nil {
 		r.log.Warn(ctx, "cache delete failed", logger.ZapError(err))
 	}
 
-	dt := persistence.TaskToDomain(task)
-	return &dt, nil
+	return nil
 }
 
 func (r *PostgresRepository) migrateTaskToShard(
