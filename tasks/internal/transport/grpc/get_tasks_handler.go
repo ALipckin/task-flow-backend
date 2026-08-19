@@ -6,7 +6,6 @@ import (
 	"tasks/proto/taskpb"
 )
 
-// its have to be transport adapter
 func (s *TaskServer) GetTasks(
 	ctx context.Context,
 	req *taskpb.GetTasksRequest,

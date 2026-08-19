@@ -6,6 +6,15 @@ type User struct {
 	Name  string
 }
 
+type Notification struct {
+	UserID  int
+	Email   string
+	Event   string
+	Payload string
+	SentAt  string
+	Channel string
+}
+
 type NotificationPayload struct {
 	Event       string `json:"event"`
 	Title       string `json:"title"`

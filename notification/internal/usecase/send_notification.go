@@ -60,7 +60,7 @@ func (uc *SendNotification) Execute(ctx context.Context, event domain.TaskEvent)
 		_ = uc.publisher.Publish(ctx, msg)
 		_ = uc.sender.Send(user.Email, event.Event, event.Description)
 		if uc.repository != nil {
-			_ = uc.repository.Save(ctx, &port.NotificationRecord{
+			_ = uc.repository.Save(ctx, &domain.Notification{
 				UserID:  user.ID,
 				Email:   user.Email,
 				Event:   event.Event,

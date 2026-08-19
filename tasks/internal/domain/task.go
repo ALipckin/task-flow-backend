@@ -237,7 +237,7 @@ func (t *Task) setObservers(observerIDs []uint) error {
 		return nil
 	}
 	if len(observerIDs) > maxObservers {
-		return ErrDuplicateObserver
+		return ErrTooManyObservers
 	}
 
 	seen := make(map[uint]struct{}, len(observerIDs))

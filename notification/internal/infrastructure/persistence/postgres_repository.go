@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+	"notification/internal/domain"
 	"notification/internal/port"
 )
 
@@ -11,7 +12,7 @@ func NewPostgresRepository( /* ds string or *sql.DB */ ) *PostgresRepository {
 	return &PostgresRepository{}
 }
 
-func (r *PostgresRepository) Save(ctx context.Context, rec *port.NotificationRecord) error {
+func (r *PostgresRepository) Save(ctx context.Context, rec *domain.Notification) error {
 	return nil
 }
 

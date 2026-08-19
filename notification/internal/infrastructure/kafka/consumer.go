@@ -2,7 +2,6 @@ package kafka
 
 import (
 	"context"
-	"encoding/json"
 	"notification/internal/domain"
 	"notification/internal/port"
 	"notification/logger"
@@ -42,8 +41,8 @@ func (c *Consumer) Consume(ctx context.Context, handle func(event domain.TaskEve
 				"topic": msg.Topic, "partition": msg.Partition, "offset": msg.Offset,
 			})
 
-			var event domain.TaskEvent
-			if err := json.Unmarshal(msg.Value, &event); err != nil {
+			event, err := decodeTaskEvent(msg.Value)
+			if err != nil {
 				logger.Log(logger.LevelError, "Failed to parse Kafka message", map[string]any{
 					"error": err.Error(), "payload": string(msg.Value),
 				})

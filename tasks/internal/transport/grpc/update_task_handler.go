@@ -48,6 +48,7 @@ func mapDomainError(err error) (error, bool) {
 		errors.Is(err, domain.ErrInvalidCreator),
 		errors.Is(err, domain.ErrObserverIsPerformer),
 		errors.Is(err, domain.ErrDuplicateObserver),
+		errors.Is(err, domain.ErrTooManyObservers),
 		errors.Is(err, domain.ErrTaskDeleted):
 		return status.Error(codes.InvalidArgument, err.Error()), true
 	default:

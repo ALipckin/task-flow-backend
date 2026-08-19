@@ -46,8 +46,7 @@ func (uc *CreateTask) Execute(ctx context.Context, cmd commands.CreateTaskComman
 	}
 
 	_ = uc.cache.SetTask(ctx, task)
-	_ = uc.producer.PublishCreated(ctx, task)
-	task.PullEvents()
+	_ = publishTaskEvents(ctx, uc.producer, &task)
 
 	return task, nil
 }

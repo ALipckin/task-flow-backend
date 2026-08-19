@@ -9,15 +9,18 @@ import (
 
 type UpdateTask struct {
 	repo     out.Repository
+	cache    out.Cache
 	producer out.EventProducer
 }
 
 func NewUpdateTask(
 	repo out.Repository,
+	cache out.Cache,
 	producer out.EventProducer,
 ) *UpdateTask {
 	return &UpdateTask{
 		repo:     repo,
+		cache:    cache,
 		producer: producer,
 	}
 }
@@ -28,7 +31,6 @@ func (uc *UpdateTask) Execute(ctx context.Context, cmd commands.UpdateTaskComman
 		return domain.Task{}, err
 	}
 
-	previousPerformerID := task.PerformerId
 	if err := task.ApplyUpdate(
 		cmd.Title,
 		cmd.Description,
@@ -40,13 +42,12 @@ func (uc *UpdateTask) Execute(ctx context.Context, cmd commands.UpdateTaskComman
 		return domain.Task{}, err
 	}
 
-	if err := uc.repo.Update(ctx, *task, previousPerformerID); err != nil {
+	if err := uc.repo.Update(ctx, *task); err != nil {
 		return domain.Task{}, err
 	}
 
-	if uc.producer != nil {
-		_ = uc.producer.PublishUpdated(ctx, *task)
-	}
+	_ = uc.cache.DeleteTask(ctx, task.ID)
+	_ = publishTaskEvents(ctx, uc.producer, task)
 
 	return *task, nil
 }

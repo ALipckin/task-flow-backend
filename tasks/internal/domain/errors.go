@@ -12,5 +12,6 @@ var (
 	ErrInvalidCreator          = errors.New("creator id must be greater than zero")
 	ErrObserverIsPerformer     = errors.New("observer cannot be the task performer")
 	ErrDuplicateObserver       = errors.New("duplicate observer id")
+	ErrTooManyObservers        = errors.New("task cannot have more than 50 observers")
 	ErrTaskDeleted             = errors.New("task is deleted")
 )

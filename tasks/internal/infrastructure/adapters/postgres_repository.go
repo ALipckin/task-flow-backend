@@ -20,7 +20,6 @@ type PostgresRepository struct {
 	ShardManager *shard.ShardManager
 	Router       out.ShardRouter
 	shardIndex   out.TaskShardIndex
-	cache        out.Cache
 	log          *logger.Logger
 }
 
@@ -28,14 +27,12 @@ func NewPostgresRepository(
 	sm *shard.ShardManager,
 	router out.ShardRouter,
 	shardIndex out.TaskShardIndex,
-	cache out.Cache,
 	log *logger.Logger,
 ) *PostgresRepository {
 	return &PostgresRepository{
 		ShardManager: sm,
 		Router:       router,
 		shardIndex:   shardIndex,
-		cache:        cache,
 		log:          log,
 	}
 }
@@ -145,7 +142,8 @@ func (r *PostgresRepository) findOnShard(ctx context.Context, db *pgxpool.Pool, 
 	return result, nil
 }
 
-func (r *PostgresRepository) Delete(ctx context.Context, taskID uint) error {
+func (r *PostgresRepository) Delete(ctx context.Context, task domain.Task) error {
+	taskID := task.ID
 	shardIndex, err := r.shardIndex.Get(ctx, taskID)
 	if err != nil {
 		if !errors.Is(err, out.ErrNotFound) {
@@ -163,17 +161,11 @@ func (r *PostgresRepository) Delete(ctx context.Context, taskID uint) error {
 		return errors.New("shard not found")
 	}
 
-	tx, err := db.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	if _, err := tx.Exec(ctx, `DELETE FROM observers WHERE task_id = $1`, taskID); err != nil {
-		return err
-	}
-
-	cmd, err := tx.Exec(ctx, `DELETE FROM tasks WHERE id = $1`, taskID)
+	cmd, err := db.Exec(ctx, `
+		UPDATE tasks
+		SET deleted_at = $1, updated_at = $2
+		WHERE id = $3 AND deleted_at IS NULL
+	`, task.DeletedAt, task.UpdatedAt, taskID)
 	if err != nil {
 		return err
 	}
@@ -181,7 +173,7 @@ func (r *PostgresRepository) Delete(ctx context.Context, taskID uint) error {
 		return out.ErrNotFound
 	}
 
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (r *PostgresRepository) GetByID(ctx context.Context, taskID uint) (*domain.Task, error) {
@@ -244,7 +236,7 @@ func (r *PostgresRepository) findShardIndexByTaskID(ctx context.Context, taskID 
 	return -1, out.ErrNotFound
 }
 
-func (r *PostgresRepository) Update(ctx context.Context, task domain.Task, previousPerformerID uint) error {
+func (r *PostgresRepository) Update(ctx context.Context, task domain.Task) error {
 	taskID := task.ID
 	model := persistence.TaskFromDomain(task)
 
@@ -295,7 +287,7 @@ func (r *PostgresRepository) Update(ctx context.Context, task domain.Task, previ
 	}
 
 	newShardIndex := r.Router.Resolve(model.PerformerId)
-	needMigrate := previousPerformerID != model.PerformerId && newShardIndex != currentShardIndex
+	needMigrate := task.PerformerChanged() && newShardIndex != currentShardIndex
 
 	if needMigrate {
 		toShard := r.ShardManager.GetShardByIndex(newShardIndex)
@@ -337,10 +329,6 @@ func (r *PostgresRepository) Update(ctx context.Context, task domain.Task, previ
 		if err := tx.Commit(ctx); err != nil {
 			return err
 		}
-	}
-
-	if err := r.cache.DeleteTask(ctx, model.ID); err != nil {
-		r.log.Warn(ctx, "cache delete failed", logger.ZapError(err))
 	}
 
 	return nil
@@ -399,7 +387,6 @@ func (r *PostgresRepository) migrateTaskToShard(
 	if err := r.shardIndex.Set(ctx, task.ID, toIndex); err != nil {
 		return err
 	}
-	_ = r.cache.DeleteTask(ctx, task.ID)
 
 	return nil
 }

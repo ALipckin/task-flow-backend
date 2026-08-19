@@ -2,7 +2,6 @@ package app
 
 import (
 	"tasks/internal/application/ports/in/commands"
-	ingrpc "tasks/internal/application/ports/in/grpc"
 	"tasks/internal/application/ports/in/queries"
 	"tasks/internal/application/ports/out"
 	"tasks/internal/application/use_cases"
@@ -34,7 +33,7 @@ type Container struct {
 	deleteTaskUC *use_cases.DeleteTask
 	updateTaskUC *use_cases.UpdateTask
 
-	taskService ingrpc.TaskService
+	taskService *transportgrpc.TaskServer
 	grpcServer  *grpc.Server
 }
 
@@ -73,7 +72,6 @@ func (c *Container) Repository() out.Repository {
 			sm,
 			adapters.NewShardRouter(sm),
 			c.TaskShardIndex(),
-			c.Cache(),
 			c.log,
 		)
 	}
@@ -137,8 +135,6 @@ func (c *Container) GetTaskUC() queries.GetTaskHandler {
 		c.getTaskUC = use_cases.NewGetTask(
 			c.Repository(),
 			c.Cache(),
-			c.Producer(),
-			c.log,
 		)
 	}
 
@@ -173,6 +169,7 @@ func (c *Container) UpdateTaskUC() commands.UpdateTaskHandler {
 	if c.updateTaskUC == nil {
 		c.updateTaskUC = use_cases.NewUpdateTask(
 			c.Repository(),
+			c.Cache(),
 			c.Producer(),
 		)
 	}
@@ -181,7 +178,7 @@ func (c *Container) UpdateTaskUC() commands.UpdateTaskHandler {
 }
 
 // TaskService returns the inbound gRPC port with injected use-cases.
-func (c *Container) TaskService() ingrpc.TaskService {
+func (c *Container) TaskService() *transportgrpc.TaskServer {
 	if c.taskService == nil {
 		c.taskService = &transportgrpc.TaskServer{
 			CreateUC:   c.CreateTaskUC(),

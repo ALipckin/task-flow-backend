@@ -14,7 +14,6 @@ type DeleteTask struct {
 	producer   out.EventProducer
 }
 
-// NewDeleteTask constructs DeleteTask use-case with its dependencies.
 func NewDeleteTask(
 	repo out.Repository,
 	cache out.Cache,
@@ -43,14 +42,18 @@ func (uc *DeleteTask) Execute(
 		return false, err
 	}
 
-	if err := uc.repo.Delete(ctx, taskID); err != nil {
+	if err := task.MarkDeleted(); err != nil {
+		return false, err
+	}
+
+	if err := uc.repo.Delete(ctx, *task); err != nil {
 		return false, err
 	}
 
 	_ = uc.cache.DeleteTask(ctx, taskID)
 	_ = uc.shardIndex.Delete(ctx, taskID)
-	// If we have err here, we return true, because task is already deleted, but log the error for debugging
-	if err := uc.producer.PublishDeleted(ctx, *task); err != nil {
+
+	if err := publishTaskEvents(ctx, uc.producer, task); err != nil {
 		return true, err
 	}
 

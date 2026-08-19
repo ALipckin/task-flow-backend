@@ -5,27 +5,20 @@ import (
 	"tasks/internal/application/ports/in/queries"
 	"tasks/internal/application/ports/out"
 	"tasks/internal/domain"
-	"tasks/logger"
 )
 
 type GetTask struct {
-	repo     out.Repository
-	cache    out.Cache
-	producer out.EventProducer
-	log      *logger.Logger
+	repo  out.Repository
+	cache out.Cache
 }
 
 func NewGetTask(
 	repo out.Repository,
 	cache out.Cache,
-	producer out.EventProducer,
-	log *logger.Logger,
 ) *GetTask {
 	return &GetTask{
-		repo:     repo,
-		cache:    cache,
-		producer: producer,
-		log:      log,
+		repo:  repo,
+		cache: cache,
 	}
 }
 
@@ -36,11 +29,6 @@ func (uc *GetTask) Execute(ctx context.Context, query queries.GetTaskQuery) (dom
 	if err == nil {
 		return task, nil
 	}
-
-	uc.log.Warn(ctx, "Cache not found for task",
-		logger.ZapUint("task_id", taskID),
-		logger.ZapError(err),
-	)
 
 	repoTask, err := uc.repo.GetByID(ctx, taskID)
 	if err != nil {

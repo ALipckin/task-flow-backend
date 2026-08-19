@@ -90,6 +90,45 @@ func TestTask_ApplyUpdate_RecordsEvent(t *testing.T) {
 	}
 }
 
+func TestTask_SetObservers_RejectsTooMany(t *testing.T) {
+	task := ReconstituteTask(1, "Title", "", 10, 20, nil, TaskStatusPending, now(), now(), nil)
+	ids := make([]uint, maxObservers+1)
+	for i := range ids {
+		ids[i] = uint(100 + i)
+	}
+
+	err := task.setObservers(ids)
+	if !errors.Is(err, ErrTooManyObservers) {
+		t.Fatalf("expected ErrTooManyObservers, got %v", err)
+	}
+}
+
+func TestTask_MarkDeleted_RecordsEvent(t *testing.T) {
+	task := ReconstituteTask(1, "Title", "", 10, 20, nil, TaskStatusPending, now(), now(), nil)
+
+	if err := task.MarkDeleted(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !task.IsDeleted() {
+		t.Fatal("expected task to be deleted")
+	}
+
+	events := task.PullEvents()
+	if len(events) != 1 || events[0].Name() != "TaskDeleted" {
+		t.Fatalf("expected TaskDeleted event, got %+v", events)
+	}
+}
+
+func TestTask_ApplyUpdate_RejectedWhenDeleted(t *testing.T) {
+	deletedAt := now()
+	task := ReconstituteTask(1, "Title", "", 10, 20, nil, TaskStatusPending, now(), now(), &deletedAt)
+
+	err := task.ApplyUpdate("New", "Desc", string(TaskStatusInProgress), 21, 11, nil)
+	if !errors.Is(err, ErrTaskDeleted) {
+		t.Fatalf("expected ErrTaskDeleted, got %v", err)
+	}
+}
+
 func TestParseTaskStatus_AcceptsNewAlias(t *testing.T) {
 	status, err := ParseTaskStatus("new")
 	if err != nil {

@@ -17,9 +17,9 @@ type TaskFilter struct {
 type Repository interface {
 	Save(ctx context.Context, task domain.Task) error
 	Find(ctx context.Context, filter TaskFilter) ([]domain.Task, error)
-	Delete(ctx context.Context, taskID uint) error
+	Delete(ctx context.Context, task domain.Task) error
 	GetByID(ctx context.Context, taskID uint) (*domain.Task, error)
-	Update(ctx context.Context, task domain.Task, previousPerformerID uint) error
+	Update(ctx context.Context, task domain.Task) error
 }
 
 // IDAllocator generates IDs for new tasks.
