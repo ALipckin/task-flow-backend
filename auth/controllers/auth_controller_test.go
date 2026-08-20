@@ -36,6 +36,7 @@ func TestSignUp_TableDriven(t *testing.T) {
 		name       string
 		payload    controllers.RequestBody
 		wantStatus int
+		wantError  string
 	}{
 		{
 			name: "Valid signup",
@@ -54,6 +55,17 @@ func TestSignUp_TableDriven(t *testing.T) {
 				Password: "anotherPass",
 			},
 			wantStatus: http.StatusBadRequest,
+			wantError:  "Email already exists",
+		},
+		{
+			name: "Duplicate name",
+			payload: controllers.RequestBody{
+				Email:    "alice2@example.com",
+				Name:     "Alice",
+				Password: "anotherPass",
+			},
+			wantStatus: http.StatusBadRequest,
+			wantError:  "Name already exists",
 		},
 		{
 			name: "Missing password",
@@ -62,6 +74,7 @@ func TestSignUp_TableDriven(t *testing.T) {
 				Name:  "Bob",
 			},
 			wantStatus: http.StatusBadRequest,
+			wantError:  "Missing required fields",
 		},
 		{
 			name: "Missing email",
@@ -70,6 +83,7 @@ func TestSignUp_TableDriven(t *testing.T) {
 				Password: "abc123",
 			},
 			wantStatus: http.StatusBadRequest,
+			wantError:  "Missing required fields",
 		},
 		{
 			name: "Missing name",
@@ -78,6 +92,7 @@ func TestSignUp_TableDriven(t *testing.T) {
 				Password: "abc123",
 			},
 			wantStatus: http.StatusBadRequest,
+			wantError:  "Missing required fields",
 		},
 	}
 
@@ -91,6 +106,16 @@ func TestSignUp_TableDriven(t *testing.T) {
 
 			if w.Code != tt.wantStatus {
 				t.Errorf("expected status %d, got %d", tt.wantStatus, w.Code)
+			}
+			if tt.wantError == "" {
+				return
+			}
+			var resp map[string]string
+			if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+				t.Fatalf("failed to parse response: %v", err)
+			}
+			if resp["error"] != tt.wantError {
+				t.Errorf("expected error %q, got %q", tt.wantError, resp["error"])
 			}
 		})
 	}

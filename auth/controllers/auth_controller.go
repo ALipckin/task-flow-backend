@@ -4,13 +4,15 @@ import (
 	"auth/logger"
 	"auth/models"
 	"encoding/json"
-	"github.com/golang-jwt/jwt/v5"
-	"golang.org/x/crypto/bcrypt"
-	"gorm.io/gorm"
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 type AuthController struct {
@@ -77,8 +79,13 @@ func (ac *AuthController) SignUp(w http.ResponseWriter, r *http.Request) {
 	user := models.User{Email: body.Email, Password: string(hash), Name: body.Name}
 	result := ac.DB.Create(&user)
 	if result.Error != nil {
-		logger.Log(logger.LevelError, "Database error during user creation", result.Error.Error())
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Failed to create user"})
+		errMsg := userCreateError(result.Error)
+		if errMsg == "Failed to create user" {
+			logger.Log(logger.LevelError, "Database error during user creation", result.Error.Error())
+		} else {
+			logger.Log(logger.LevelWarn, "User creation rejected", errMsg)
+		}
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": errMsg})
 		return
 	}
 
@@ -187,4 +194,18 @@ func (ac *AuthController) Validate(w http.ResponseWriter, r *http.Request) {
 		"email":   claims["email"],
 		"name":    claims["name"],
 	})
+}
+
+func userCreateError(err error) string {
+	msg := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(msg, "uni_users_email"), strings.Contains(msg, "users.email"):
+		return "Email already exists"
+	case strings.Contains(msg, "uni_users_name"), strings.Contains(msg, "users.name"):
+		return "Name already exists"
+	case strings.Contains(msg, "duplicate key"), strings.Contains(msg, "unique constraint"), strings.Contains(msg, "23505"):
+		return "User already exists"
+	default:
+		return "Failed to create user"
+	}
 }
