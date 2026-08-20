@@ -8,10 +8,17 @@ import (
 	"github.com/IBM/sarama"
 )
 
+const (
+	producerConnectAttempts = 60
+	producerConnectInterval = 2 * time.Second
+)
+
 // Producer sends messages to Kafka.
 type Producer struct {
 	sync sarama.SyncProducer
 }
+
+type syncProducerFactory func(brokers []string, cfg *sarama.Config) (sarama.SyncProducer, error)
 
 // NewProducer creates a Kafka sync producer for the given brokers.
 func NewProducer(brokers []string) *Producer {
@@ -24,13 +31,42 @@ func NewProducer(brokers []string) *Producer {
 	cfg.Producer.Return.Successes = true
 	cfg.Producer.Timeout = 5 * time.Second
 
-	producer, err := sarama.NewSyncProducer(brokers, cfg)
+	producer, err := connectWithRetry(brokers, cfg, sarama.NewSyncProducer, producerConnectAttempts, producerConnectInterval)
 	if err != nil {
 		log.Fatalf("Error creating Kafka producer: %v", err)
 	}
 
 	log.Println("Kafka producer initialized successfully")
 	return &Producer{sync: producer}
+}
+
+func connectWithRetry(
+	brokers []string,
+	cfg *sarama.Config,
+	factory syncProducerFactory,
+	attempts int,
+	interval time.Duration,
+) (sarama.SyncProducer, error) {
+	if attempts < 1 {
+		attempts = 1
+	}
+
+	var lastErr error
+	for attempt := 1; attempt <= attempts; attempt++ {
+		producer, err := factory(brokers, cfg)
+		if err == nil {
+			return producer, nil
+		}
+		lastErr = err
+		if attempt == attempts {
+			break
+		}
+		log.Printf("Kafka not ready (attempt %d/%d): %v", attempt, attempts, err)
+		if interval > 0 {
+			time.Sleep(interval)
+		}
+	}
+	return nil, lastErr
 }
 
 func (p *Producer) SendMessage(topic, message string) error {

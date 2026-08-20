@@ -38,14 +38,14 @@ network:
 	@docker network create task-network 2>/dev/null || echo "Network already exists"
 
 up: network
-	@echo "Starting all services..."
+	@echo "Starting Kafka first..."
+	@cd gateway && docker-compose up -d --wait zookeeper kafka
+	@echo "Starting remaining services..."
 	@cd auth && docker-compose up -d
 	@cd tasks && docker-compose up -d
 	@cd gateway && docker-compose up -d
 	@cd notification && docker-compose up -d
 	@echo "All services started!"
-	@echo "Waiting for services to be healthy..."
-	@sleep 10
 	@make status
 
 down:

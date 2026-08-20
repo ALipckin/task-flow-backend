@@ -97,6 +97,7 @@ services:
       DB_SHARD_URLS: ${DB_SHARD_URLS}
       REDIS_URL: ${REDIS_URL}
       VNODES_PER_SHARD: ${VNODES_PER_SHARD}
+      KAFKA_BROKERS: ${KAFKA_BROKERS:-kafka:9092}
     networks:
       - task-network
     restart: unless-stopped
