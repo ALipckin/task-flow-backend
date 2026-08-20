@@ -41,7 +41,7 @@ func (tc *TaskController) TasksCreate(c *gin.Context) {
 	resp, err := tc.GRPCClient.CreateTask(context.Background(), &req)
 	if err != nil {
 		logger.Log(logger.LevelError, "Failed to create task", gin.H{"error": err.Error()})
-		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		respondGRPCError(c, err)
 		return
 	}
 
@@ -96,7 +96,7 @@ func (tc *TaskController) TasksIndex(c *gin.Context) {
 	resp, err := tc.GRPCClient.GetTasks(context.Background(), req)
 	if err != nil {
 		logger.Log(logger.LevelError, "Failed to retrieve task list", gin.H{"error": err.Error()})
-		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		respondGRPCError(c, err)
 		return
 	}
 
@@ -127,7 +127,7 @@ func (tc *TaskController) TasksShow(c *gin.Context) {
 	resp, err := tc.GRPCClient.GetTask(context.Background(), &pb.GetTaskRequest{Id: id})
 	if err != nil {
 		logger.Log(logger.LevelError, "Task not found", gin.H{"error": err.Error()})
-		c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+		respondGRPCError(c, err)
 		return
 	}
 
@@ -159,7 +159,7 @@ func (tc *TaskController) TasksUpdate(c *gin.Context) {
 	resp, err := tc.GRPCClient.UpdateTask(context.Background(), &req)
 	if err != nil {
 		logger.Log(logger.LevelError, "Failed to update task", gin.H{"error": err.Error()})
-		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		respondGRPCError(c, err)
 		return
 	}
 
@@ -190,7 +190,7 @@ func (tc *TaskController) TasksDelete(c *gin.Context) {
 	_, err = tc.GRPCClient.DeleteTask(context.Background(), &pb.DeleteTaskRequest{Id: id})
 	if err != nil {
 		logger.Log(logger.LevelError, "Failed to delete task", gin.H{"error": err.Error()})
-		c.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		respondGRPCError(c, err)
 		return
 	}
 
